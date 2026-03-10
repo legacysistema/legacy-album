@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Álbum Studio — Seleção de Fotos</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+<style>
+  :root {
+    --cream: #F5F0E8;
+    --warm-white: #FDFAF5;
+    --dark: #1A1714;
+    --brown: #6B4F3A;
+    --gold: #C9A84C;
+    --gold-light: #E8D5A3;
+    --muted: #9A8F85;
+    --border: #E2D9CE;
+    --success: #4A7C59;
+    --error: #8B3A3A;
+    --shadow: 0 4px 24px rgba(26,23,20,0.08);
+    --shadow-lg: 0 8px 48px rgba(26,23,20,0.14);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background-color: var(--cream);
+    color: var(--dark);
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+
+  /* ─── HEADER ─── */
+  .header {
+    background: var(--dark);
+    color: var(--cream);
+    padding: 18px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    border-bottom: 2px solid var(--gold);
+  }
+
+  .header-logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--cream);
+  }
+
+  .header-logo span { color: var(--gold); }
+
+  .header-badge {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: rgba(255,255,255,0.06);
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+
+  /* ─── MAIN WRAPPER ─── */
+  .main { max-width: 960px; margin: 0 auto; padding: 48px 24px 80px; }
+
+  /* ─── SECTION TITLE ─── */
+  .section-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--dark);
+    margin-bottom: 6px;
+  }
+  .section-sub {
+    font-size: 14px;
+    color: var(--muted);
+    margin-bottom: 32px;
+  }
+
+  /* ─── CARD ─── */
+  .card {
+    background: var(--warm-white);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    box-shadow: var(--shadow);
+    margin-bottom: 28px;
+  }
+
+  .card-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--brown);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .card-title::before {
+    content: '';
+    display: block;
+    width: 4px;
+    height: 20px;
+    background: var(--gold);
+    border-radius: 2px;
+  }
+
+  /* ─── FORM ELEMENTS ─── */
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  @media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } }
+
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+
+  label {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  input[type="text"], input[type="email"], input[type="number"] {
+    background: var(--cream);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 11px 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    color: var(--dark);
+    transition: border-color 0.2s, box-shadow 0.2s;
+    outline: none;
+    width: 100%;
+  }
+
+  input:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(201,168,76,0.12);
+  }
+
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
+
+  /* ─── BUTTONS ─── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 24px;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+    text-decoration: none;
+  }
+
+  .btn-primary {
+    background: var(--dark);
+    color: var(--cream);
+  }
+  .btn-primary:hover { background: var(--brown); transform: translateY(-1px); box-shadow: var(--shadow); }
+
+  .btn-gold {
+    background: var(--gold);
+    color: var(--dark);
+  }
+  .btn-gold:hover { background: #b8963e; transform: translateY(-1px); box-shadow: var(--shadow); }
+
+  .btn-outline {
+    background: transparent;
+    color: var(--dark);
+    border: 1.5px solid var(--border);
+  }
+  .btn-outline:hover { border-color: var(--gold); color: var(--brown); }
+
+  .btn-sm { padding: 7px 14px; font-size: 11px; border-radius: 8px; }
+
+  .btn-success { background: var(--success); color: white; }
+  .btn-success:hover { background: #3a6347; }
+
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
+
+  /* ─── LINK BOX ─── */
+  .link-box {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--cream);
+    border: 1.5px dashed var(--gold);
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 16px;
+  }
+
+  .link-box span {
+    flex: 1;
+    font-size: 13px;
+    color: var(--brown);
+    word-break: break-all;
+    font-weight: 500;
+  }
+
+  /* ─── TABLE ─── */
+  .table-wrap { overflow-x: auto; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+
+  thead tr {
+    background: var(--dark);
+    color: var(--gold-light);
+  }
+
+  th {
+    padding: 12px 16px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  th:first-child { border-radius: 10px 0 0 0; }
+  th:last-child { border-radius: 0 10px 0 0; }
+
+  td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--dark);
+    vertical-align: middle;
+  }
+
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(201,168,76,0.04); }
+
+  .status-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+
+  .status-waiting {
+    background: rgba(201,168,76,0.15);
+    color: #8B6914;
+  }
+
+  .status-filled {
+    background: rgba(74,124,89,0.15);
+    color: var(--success);
+  }
+
+  /* ─── ALBUM FORM ─── */
+  .album-header {
+    text-align: center;
+    padding: 48px 24px 32px;
+  }
+
+  .album-header h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--dark);
+    margin-bottom: 8px;
+  }
+
+  .album-header p {
+    color: var(--muted);
+    font-size: 15px;
+    max-width: 520px;
+    margin: 0 auto;
+  }
+
+  .client-tag {
+    display: inline-block;
+    background: var(--dark);
+    color: var(--gold);
+    padding: 6px 18px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-top: 14px;
+    letter-spacing: 0.04em;
+  }
+
+  .cover-block {
+    background: linear-gradient(135deg, var(--dark) 0%, var(--brown) 100%);
+    border-radius: 16px;
+    padding: 28px 32px;
+    margin-bottom: 28px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+
+  .cover-label {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--gold);
+    flex: 0 0 auto;
+    min-width: 80px;
+  }
+
+  .cover-block input {
+    background: rgba(255,255,255,0.1);
+    border: 1.5px solid rgba(255,255,255,0.2);
+    color: white;
+    max-width: 140px;
+  }
+
+  .cover-block input::placeholder { color: rgba(255,255,255,0.35); }
+
+  .cover-block input:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(201,168,76,0.2);
+  }
+
+  .cover-block label { color: rgba(255,255,255,0.6); }
+
+  .pages-grid { display: flex; flex-direction: column; gap: 12px; }
+
+  .page-block {
+    background: var(--warm-white);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  .page-block:hover {
+    border-color: var(--gold-light);
+    box-shadow: 0 2px 12px rgba(201,168,76,0.08);
+  }
+
+  .page-number {
+    font-family: 'Playfair Display', serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--muted);
+    min-width: 68px;
+    flex-shrink: 0;
+  }
+
+  .page-inputs {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    flex: 1;
+  }
+
+  .page-inputs input {
+    width: 60px;
+    text-align: center;
+    padding: 8px 6px;
+    font-size: 14px;
+  }
+
+  @media (max-width: 600px) {
+    .page-inputs input { width: 50px; }
+    .page-block { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .cover-block { flex-direction: column; }
+  }
+
+  .submit-area {
+    text-align: center;
+    padding: 40px 24px;
+    background: var(--warm-white);
+    border-top: 1px solid var(--border);
+    margin-top: 32px;
+  }
+
+  .submit-area .btn { font-size: 15px; padding: 16px 48px; border-radius: 12px; }
+
+  /* ─── SUCCESS STATE ─── */
+  .success-screen {
+    text-align: center;
+    padding: 80px 24px;
+    display: none;
+  }
+
+  .success-icon {
+    width: 72px;
+    height: 72px;
+    background: rgba(74,124,89,0.12);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 24px;
+    font-size: 32px;
+  }
+
+  .success-screen h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    margin-bottom: 12px;
+    color: var(--dark);
+  }
+
+  .success-screen p { color: var(--muted); font-size: 15px; margin-bottom: 28px; }
+
+  /* ─── TOAST ─── */
+  .toast {
+    position: fixed;
+    bottom: 32px;
+    right: 32px;
+    background: var(--dark);
+    color: var(--cream);
+    padding: 14px 22px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 500;
+    box-shadow: var(--shadow-lg);
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all 0.3s ease;
+    z-index: 9999;
+    border-left: 4px solid var(--gold);
+    max-width: 340px;
+  }
+
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.error { border-left-color: var(--error); }
+
+  /* ─── LOADING ─── */
+  .loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: var(--muted);
+    gap: 10px;
+    font-size: 14px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+
+  /* ─── EMPTY STATE ─── */
+  .empty-state {
+    text-align: center;
+    padding: 40px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  /* ─── INFO NOTE ─── */
+  .info-note {
+    background: rgba(201,168,76,0.08);
+    border: 1px solid var(--gold-light);
+    border-radius: 10px;
+    padding: 14px 18px;
+    font-size: 13px;
+    color: var(--brown);
+    margin-bottom: 24px;
+    line-height: 1.6;
+  }
+
+  /* ─── DIVIDER ─── */
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 28px 0;
+  }
+
+  /* ─── ACTIONS ─── */
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .btn-danger {
+    background: transparent;
+    color: var(--error);
+    border: 1.5px solid rgba(139,58,58,0.25);
+  }
+  .btn-danger:hover { background: rgba(139,58,58,0.08); border-color: var(--error); }
+
+  /* ─── CONFIRM MODAL ─── */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(26,23,20,0.55);
+    backdrop-filter: blur(3px);
+    z-index: 1000;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .modal-overlay.open { opacity: 1; pointer-events: all; }
+
+  .modal {
+    background: var(--warm-white);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: var(--shadow-lg);
+    transform: translateY(12px);
+    transition: transform 0.2s;
+  }
+  .modal-overlay.open .modal { transform: translateY(0); }
+
+  .modal h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px;
+    margin-bottom: 10px;
+    color: var(--dark);
+  }
+  .modal p { font-size: 14px; color: var(--muted); margin-bottom: 24px; line-height: 1.6; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-logo">Álbum <span>Studio</span></div>
+  <div class="header-badge" id="headerBadge">Dashboard</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ DASHBOARD -->
+<div id="dashboardView">
+  <div class="main">
+    <p class="section-title">Dashboard</p>
+    <p class="section-sub">Gerencie os formulários de seleção de álbum dos seus clientes.</p>
+
+    <!-- GERAR LINK -->
+    <div class="card">
+      <div class="card-title">Gerar novo formulário</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="clientName">Nome do cliente</label>
+          <input type="text" id="clientName" placeholder="Ex: Ana e Pedro" />
+        </div>
+        <div class="form-group">
+          <label for="clientContact">E-mail ou WhatsApp (opcional)</label>
+          <input type="text" id="clientContact" placeholder="Ex: (11) 99999-9999" />
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="generateForm()">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        Gerar Link
+      </button>
+
+      <div id="generatedLinkBox" style="display:none;" class="link-box">
+        <span id="generatedLinkText"></span>
+        <button class="btn btn-gold btn-sm" onclick="copyLink()">Copiar</button>
+      </div>
+    </div>
+
+    <!-- LISTA DE FORMULÁRIOS -->
+    <div class="card">
+      <div class="card-title">Formulários criados</div>
+      <div class="table-wrap">
+        <table id="formsTable">
+          <thead>
+            <tr>
+              <th>Cliente</th>
+              <th>Status</th>
+              <th>Criado em</th>
+              <th>Enviado em</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="formsTableBody">
+            <tr><td colspan="5"><div class="loading"><div class="spinner"></div>Carregando...</div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ FORM CLIENTE -->
+<div id="clientView" style="display:none;">
+  <div id="formContent">
+    <div class="album-header">
+      <h1>Seleção de Fotos</h1>
+      <p>Informe os números das fotos escolhidas para cada página do álbum. Os campos são opcionais — preencha apenas o que se aplica.</p>
+      <div class="client-tag" id="clientNameTag">Carregando...</div>
+    </div>
+
+    <div class="main" style="padding-top:0;">
+      <div class="info-note">
+        📌 <strong>Como preencher:</strong> Digite apenas os números das fotos nos campos correspondentes a cada página. Você pode colocar até 6 fotos por página. Após finalizar, clique em <strong>Enviar Seleção</strong>.
+      </div>
+
+      <!-- CAPA -->
+      <div class="cover-block">
+        <div>
+          <div class="cover-label">CAPA</div>
+        </div>
+        <div class="form-group">
+          <label for="fotoCapa">Número da foto</label>
+          <input type="number" id="fotoCapa" placeholder="ex: 22" min="1" />
+        </div>
+      </div>
+
+      <!-- PÁGINAS -->
+      <div class="pages-grid" id="pagesGrid"></div>
+
+      <div class="submit-area">
+        <button class="btn btn-primary" id="submitBtn" onclick="submitForm()" style="font-size:15px; padding:16px 48px;">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/></svg>
+          Enviar Seleção
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUCESSO -->
+  <div class="success-screen" id="successScreen">
+    <div class="success-icon">✓</div>
+    <h2>Seleção enviada!</h2>
+    <p>Sua seleção de fotos foi recebida com sucesso.<br>Você pode baixar uma cópia abaixo.</p>
+    <button class="btn btn-gold" onclick="downloadClientSelection()" style="font-size:15px; padding:14px 36px;">
+      ⬇ Baixar Minha Seleção
+    </button>
+  </div>
+</div>
+
+<!-- CONFIRM DELETE MODAL -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal">
+    <h3>Excluir formulário?</h3>
+    <p>Esta ação é permanente e não poderá ser desfeita. O link do cliente deixará de funcionar.</p>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeDeleteModal()">Cancelar</button>
+      <button class="btn btn-danger" id="confirmDeleteBtn" onclick="confirmDelete()">Excluir</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── SUPABASE SETUP ───────────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://rjyxkouegrropsarrhje.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqeXhrb3VlZ3Jyb3BzYXJyaGplIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk1NjYxNjcsImV4cCI6MjA4NTE0MjE2N30.UjNPnVBVhQcUSirXeWZ3RmYmAhDMqqbbVUChG_Mv57U';
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let currentFormId = null;
+let currentFormData = null;
+let generatedLinkUrl = '';
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(window.location.search);
+  const formId = params.get('form');
+  if (formId) {
+    currentFormId = formId;
+    showClientView(formId);
+  } else {
+    showDashboard();
+  }
+});
+
+// ─── VIEWS ────────────────────────────────────────────────────────────────────
+function showDashboard() {
+  document.getElementById('dashboardView').style.display = '';
+  document.getElementById('clientView').style.display = 'none';
+  document.getElementById('headerBadge').textContent = 'Dashboard Admin';
+  loadForms();
+  subscribeToForms();
+}
+
+function showClientView(formId) {
+  document.getElementById('dashboardView').style.display = 'none';
+  document.getElementById('clientView').style.display = '';
+  document.getElementById('headerBadge').textContent = 'Formulário do Cliente';
+  buildPageInputs();
+  loadClientForm(formId);
+}
+
+// ─── BUILD PAGE INPUTS ────────────────────────────────────────────────────────
+function buildPageInputs() {
+  const grid = document.getElementById('pagesGrid');
+  grid.innerHTML = '';
+  for (let p = 1; p <= 23; p++) {
+    const block = document.createElement('div');
+    block.className = 'page-block';
+    block.innerHTML = `<div class="page-number">Página ${p}</div><div class="page-inputs" id="page${p}inputs">` +
+      [1,2,3,4,5,6].map(i =>
+        `<input type="number" id="p${p}f${i}" placeholder="${i}" min="1" title="Página ${p} — Foto ${i}" />`
+      ).join('') +
+    '</div>';
+    grid.appendChild(block);
+  }
+}
+
+// ─── LOAD CLIENT FORM ─────────────────────────────────────────────────────────
+async function loadClientForm(formId) {
+  const { data, error } = await db.from('album_forms').select('*').eq('id', formId).single();
+  if (error || !data) {
+    showToast('Formulário não encontrado.', true);
+    document.getElementById('clientNameTag').textContent = 'Formulário inválido';
+    return;
+  }
+  currentFormData = data;
+  document.getElementById('clientNameTag').textContent = data.cliente;
+
+  if (data.status === 'Preenchido') {
+    // preenche campos com dados existentes e mostra sucesso
+    fillFormFields(data);
+    document.getElementById('formContent').style.display = 'none';
+    document.getElementById('successScreen').style.display = '';
+  }
+}
+
+function fillFormFields(data) {
+  if (data.capa) document.getElementById('fotoCapa').value = data.capa;
+  for (let p = 1; p <= 23; p++) {
+    const val = data[`pagina${p}`];
+    if (val) {
+      const nums = val.split(',').map(s => s.trim());
+      nums.forEach((n, i) => {
+        const el = document.getElementById(`p${p}f${i+1}`);
+        if (el) el.value = n;
+      });
+    }
+  }
+}
+
+// ─── SUBMIT FORM ──────────────────────────────────────────────────────────────
+async function submitForm() {
+  if (!currentFormId) return;
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+
+  const payload = {
+    status: 'Preenchido',
+    submitted_at: new Date().toISOString(),
+    capa: document.getElementById('fotoCapa').value.trim() || null,
+  };
+
+  for (let p = 1; p <= 23; p++) {
+    const vals = [];
+    for (let f = 1; f <= 6; f++) {
+      const el = document.getElementById(`p${p}f${f}`);
+      if (el && el.value.trim()) vals.push(el.value.trim());
+    }
+    payload[`pagina${p}`] = vals.length > 0 ? vals.join(',') : null;
+  }
+
+  const { data, error } = await db.from('album_forms').update(payload).eq('id', currentFormId).select().single();
+
+  if (error) {
+    showToast('Erro ao enviar. Tente novamente.', true);
+    btn.disabled = false;
+    btn.textContent = 'Enviar Seleção';
+    return;
+  }
+
+  currentFormData = { ...currentFormData, ...payload };
+  document.getElementById('formContent').style.display = 'none';
+  document.getElementById('successScreen').style.display = '';
+}
+
+// ─── GENERATE FORM ────────────────────────────────────────────────────────────
+async function generateForm() {
+  const name = document.getElementById('clientName').value.trim();
+  if (!name) { showToast('Informe o nome do cliente.', true); return; }
+
+  const { data, error } = await db.from('album_forms').insert({
+    cliente: name,
+    status: 'Aguardando preenchimento',
+    created_at: new Date().toISOString(),
+  }).select().single();
+
+  if (error) { showToast('Erro ao gerar formulário: ' + error.message, true); return; }
+
+  const url = `${window.location.origin}${window.location.pathname}?form=${data.id}`;
+  generatedLinkUrl = url;
+  document.getElementById('generatedLinkText').textContent = url;
+  document.getElementById('generatedLinkBox').style.display = 'flex';
+  document.getElementById('clientName').value = '';
+  document.getElementById('clientContact').value = '';
+  showToast('Formulário criado! Link pronto para copiar.');
+  loadForms();
+}
+
+// ─── COPY LINK ────────────────────────────────────────────────────────────────
+function copyLink() {
+  navigator.clipboard.writeText(generatedLinkUrl).then(() => showToast('Link copiado!'));
+}
+
+// ─── LOAD FORMS TABLE ─────────────────────────────────────────────────────────
+async function loadForms() {
+  const tbody = document.getElementById('formsTableBody');
+  tbody.innerHTML = '<tr><td colspan="5"><div class="loading"><div class="spinner"></div>Carregando...</div></td></tr>';
+
+  const { data, error } = await db.from('album_forms').select('*').order('created_at', { ascending: false });
+
+  if (error) {
+    tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state">Erro ao carregar formulários.</div></td></tr>';
+    return;
+  }
+
+  if (!data || data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state">Nenhum formulário criado ainda.</div></td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = data.map(row => `
+    <tr>
+      <td><strong>${escHtml(row.cliente)}</strong></td>
+      <td><span class="status-badge ${row.status === 'Preenchido' ? 'status-filled' : 'status-waiting'}">${escHtml(row.status)}</span></td>
+      <td>${formatDate(row.created_at)}</td>
+      <td>${row.submitted_at ? formatDate(row.submitted_at) : '<span style="color:var(--muted)">—</span>'}</td>
+      <td>
+        <div class="actions">
+          <button class="btn btn-outline btn-sm" onclick="openFormLink('${row.id}')">Abrir</button>
+          ${row.status === 'Preenchido' ? `<button class="btn btn-gold btn-sm" onclick="downloadSelection('${row.id}')">Baixar</button>` : ''}
+          <button class="btn btn-danger btn-sm" onclick="openDeleteModal('${row.id}', '${escHtml(row.cliente)}')">Excluir</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+// ─── REALTIME SUBSCRIPTION ────────────────────────────────────────────────────
+let realtimeChannel = null;
+function subscribeToForms() {
+  if (realtimeChannel) return;
+  realtimeChannel = db.channel('album_forms_changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'album_forms' }, () => loadForms())
+    .subscribe();
+}
+
+// ─── OPEN FORM LINK ───────────────────────────────────────────────────────────
+function openFormLink(id) {
+  const url = `${window.location.origin}${window.location.pathname}?form=${id}`;
+  window.open(url, '_blank');
+}
+
+// ─── DOWNLOAD (ADMIN) ─────────────────────────────────────────────────────────
+async function downloadSelection(id) {
+  const { data, error } = await db.from('album_forms').select('*').eq('id', id).single();
+  if (error || !data) { showToast('Erro ao carregar dados.', true); return; }
+  triggerDownload(data, `album_${data.cliente.replace(/\s+/g,'_')}.txt`);
+}
+
+// ─── DOWNLOAD (CLIENT) ────────────────────────────────────────────────────────
+function downloadClientSelection() {
+  if (!currentFormData) return;
+  triggerDownload(currentFormData, `minha_selecao_album.txt`);
+}
+
+function triggerDownload(data, filename) {
+  let txt = `SELEÇÃO DE FOTOS — ÁLBUM IMPRESSO\n`;
+  txt += `${'═'.repeat(40)}\n`;
+  txt += `Cliente: ${data.cliente}\n`;
+  txt += `Data envio: ${data.submitted_at ? formatDate(data.submitted_at) : 'N/A'}\n`;
+  txt += `${'═'.repeat(40)}\n\n`;
+  txt += `CAPA: ${data.capa || '(não informado)'}\n\n`;
+  for (let p = 1; p <= 23; p++) {
+    const val = data[`pagina${p}`];
+    txt += `Página ${p}: ${val || '(não informado)'}\n`;
+  }
+  const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ─── DELETE ───────────────────────────────────────────────────────────────────
+let pendingDeleteId = null;
+
+function openDeleteModal(id, name) {
+  pendingDeleteId = id;
+  document.querySelector('#deleteModal .modal p').textContent =
+    `Tem certeza que deseja excluir o formulário de "${name}"? Esta ação é permanente e não poderá ser desfeita.`;
+  document.getElementById('deleteModal').classList.add('open');
+}
+
+function closeDeleteModal() {
+  pendingDeleteId = null;
+  document.getElementById('deleteModal').classList.remove('open');
+}
+
+async function confirmDelete() {
+  if (!pendingDeleteId) return;
+  const btn = document.getElementById('confirmDeleteBtn');
+  btn.disabled = true;
+  btn.textContent = 'Excluindo...';
+
+  const { error } = await db.from('album_forms').delete().eq('id', pendingDeleteId);
+
+  btn.disabled = false;
+  btn.textContent = 'Excluir';
+  closeDeleteModal();
+
+  if (error) {
+    showToast('Erro ao excluir: ' + error.message, true);
+  } else {
+    showToast('Formulário excluído com sucesso.');
+    loadForms();
+  }
+}
+
+// ─── UTILS ────────────────────────────────────────────────────────────────────
+function formatDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+let toastTimer;
+function showToast(msg, isError = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (isError ? ' error' : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = 'toast'; }, 3200);
+}
+</script>
+
+</body>
+</html>

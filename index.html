@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Legacy Album — Seleção de Fotos</title>
+<title>Álbum Studio — Seleção de Fotos</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
 <style>
@@ -511,6 +511,65 @@
   }
   .btn-danger:hover { background: rgba(139,58,58,0.08); border-color: var(--error); }
 
+  /* ─── LOGIN SCREEN ─── */
+  #loginScreen {
+    position: fixed;
+    inset: 0;
+    background: var(--dark);
+    z-index: 9000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .login-box {
+    background: var(--warm-white);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 48px 40px;
+    max-width: 400px;
+    width: 100%;
+    box-shadow: var(--shadow-lg);
+    text-align: center;
+  }
+
+  .login-logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--dark);
+    margin-bottom: 6px;
+  }
+
+  .login-logo span { color: var(--gold); }
+
+  .login-sub {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 32px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .login-box .form-group {
+    text-align: left;
+    margin-bottom: 20px;
+  }
+
+  .login-error {
+    background: rgba(139,58,58,0.1);
+    border: 1px solid rgba(139,58,58,0.3);
+    color: var(--error);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 13px;
+    margin-bottom: 16px;
+    display: none;
+  }
+
+  .login-box .btn { width: 100%; justify-content: center; padding: 14px; font-size: 14px; }
+
   /* ─── CONFIRM MODAL ─── */
   .modal-overlay {
     position: fixed; inset: 0;
@@ -550,7 +609,30 @@
 
 <div class="header">
   <div class="header-logo">Álbum <span>Studio</span></div>
-  <div class="header-badge" id="headerBadge">Dashboard</div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <div class="header-badge" id="headerBadge">Dashboard</div>
+    <button id="logoutBtn" class="btn btn-outline btn-sm" onclick="doLogout()" style="display:none;color:var(--cream);border-color:rgba(255,255,255,0.2);font-size:11px;">
+      Sair
+    </button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ LOGIN ADMIN -->
+<div id="loginScreen" style="display:none;">
+  <div class="login-box">
+    <div class="login-logo">Álbum <span>Studio</span></div>
+    <div class="login-sub">Área restrita — Admin</div>
+    <div class="login-error" id="loginError">E-mail ou senha incorretos.</div>
+    <div class="form-group">
+      <label for="adminEmail">E-mail</label>
+      <input type="text" id="adminEmail" placeholder="seu@email.com" onkeydown="if(event.key==='Enter') doLogin()" />
+    </div>
+    <div class="form-group">
+      <label for="adminPassword">Senha</label>
+      <input type="password" id="adminPassword" placeholder="••••••••" onkeydown="if(event.key==='Enter') doLogin()" />
+    </div>
+    <button class="btn btn-primary" id="loginBtn" onclick="doLogin()">Entrar no Dashboard</button>
+  </div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════ DASHBOARD -->
@@ -680,15 +762,65 @@ let currentFormId = null;
 let currentFormData = null;
 let generatedLinkUrl = '';
 
+// ─── SUPABASE AUTH ───────────────────────────────────────────────────────────
+async function doLogin() {
+  const email = document.getElementById('adminEmail').value.trim();
+  const password = document.getElementById('adminPassword').value;
+  const btn = document.getElementById('loginBtn');
+  const errEl = document.getElementById('loginError');
+
+  if (!email || !password) {
+    errEl.textContent = 'Preencha e-mail e senha.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Entrando...';
+  errEl.style.display = 'none';
+
+  const { data, error } = await db.auth.signInWithPassword({ email, password });
+
+  if (error) {
+    errEl.textContent = 'E-mail ou senha incorretos.';
+    errEl.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Entrar no Dashboard';
+    document.getElementById('adminPassword').value = '';
+    return;
+  }
+
+  document.getElementById('loginScreen').style.display = 'none';
+  showDashboard();
+}
+
+async function doLogout() {
+  await db.auth.signOut();
+  document.getElementById('dashboardView').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('adminEmail').value = '';
+  document.getElementById('adminPassword').value = '';
+  document.getElementById('logoutBtn').style.display = 'none';
+}
+
 // ─── INIT ─────────────────────────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
   const params = new URLSearchParams(window.location.search);
   const formId = params.get('form');
+
   if (formId) {
+    // Acesso de cliente via link — vai direto, sem login
     currentFormId = formId;
     showClientView(formId);
   } else {
-    showDashboard();
+    // Acesso ao sistema — verifica sessão Supabase Auth
+    const { data: { session } } = await db.auth.getSession();
+    if (session) {
+      showDashboard();
+    } else {
+      document.getElementById('loginScreen').style.display = 'flex';
+      setTimeout(() => document.getElementById('adminEmail').focus(), 100);
+    }
   }
 });
 
@@ -697,6 +829,7 @@ function showDashboard() {
   document.getElementById('dashboardView').style.display = '';
   document.getElementById('clientView').style.display = 'none';
   document.getElementById('headerBadge').textContent = 'Dashboard Admin';
+  document.getElementById('logoutBtn').style.display = '';
   loadForms();
   subscribeToForms();
 }

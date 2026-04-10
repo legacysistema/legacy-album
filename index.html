@@ -1558,7 +1558,7 @@ function acceptRules() {
 function restoreSel(data) {
   sel = {};
   if (data.capa) sel['capa'] = [parseInt(data.capa) - 1];
-  for (let p = 1; p <= 23; p++) {
+  for (let p = 1; p <= 22; p++) {
     const v = data[`pagina${p}`];
     if (v) sel[p] = v.split(',').map(n => parseInt(n.trim()) - 1).filter(n => !isNaN(n));
   }
@@ -1611,7 +1611,7 @@ function openPgModal(idx) {
   let html = `<button class="pgbtn pgbtn-cv ${cvSel ? 'sel' : ''}" onclick="selPage('capa',this)">★ CAPA</button>`;
   html += `<div style="grid-column:span 3"></div>`;
 
-  for (let p = 1; p <= 23; p++) {
+  for (let p = 1; p <= 22; p++) {
     const cnt = countByPage[p] || 0;
     const full = cnt >= MAX_PER_PAGE;
     const s = pendingPage === p;
@@ -1693,7 +1693,7 @@ async function submitForm() {
   const payload = { status: 'Preenchido', submitted_at: new Date().toISOString() };
   // Store original photo numbers (position in gallery, 1-indexed)
   payload.capa = String(sel['capa'][0] + 1);
-  for (let p = 1; p <= 23; p++) payload[`pagina${p}`] = sel[p] && sel[p].length ? sel[p].map(i => i + 1).join(',') : null;
+  for (let p = 1; p <= 22; p++) payload[`pagina${p}`] = sel[p] && sel[p].length ? sel[p].map(i => i + 1).join(',') : null;
   const { error } = await db.from('album_forms').update(payload).eq('id', formId);
   if (error) { toast('Erro ao enviar.', 1); btn.disabled = false; btn.textContent = 'Finalizar Seleção'; return; }
   formData = { ...formData, ...payload };
@@ -1728,7 +1728,7 @@ function triggerDl(data, photos, fname) {
   if (data.aniversariante) txt += `Aniversariante: ${data.aniversariante}${data.idade ? `, ${data.idade} anos` : ''}\n`;
   txt += `Envio: ${data.submitted_at ? fmt(data.submitted_at) : 'N/A'}\n${'═'.repeat(50)}\n\n`;
   txt += `CAPA:\n  ${data.capa ? getPhotoLabel(data.capa) : '(não selecionado)'}\n\n`;
-  for (let p = 1; p <= 23; p++) {
+  for (let p = 1; p <= 22; p++) {
     const v = data[`pagina${p}`];
     if (v) {
       txt += `Página ${p}:\n`;
@@ -1795,7 +1795,7 @@ async function separateOriginalPhotos(formId, clientName) {
   // Monta lista de nomes originais selecionados (capa + páginas)
   const allSelected = [];
   if (form.capa) allSelected.push(parseInt(form.capa) - 1);
-  for (let p = 1; p <= 23; p++) {
+  for (let p = 1; p <= 22; p++) {
     const v = form[`pagina${p}`];
     if (v) v.split(',').forEach(n => { const i = parseInt(n.trim()) - 1; if (!isNaN(i) && !allSelected.includes(i)) allSelected.push(i); });
   }
@@ -1955,7 +1955,6 @@ function toast(msg, err = 0) {
   clearTimeout(toastT); toastT = setTimeout(() => { el.className = 'toast'; }, 3400);
 }
 </script>
-
 
 </body>
 </html>

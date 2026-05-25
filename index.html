@@ -767,9 +767,16 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 .sep-footer {
   padding: 16px 28px 22px;
   border-top: 1px solid var(--border);
-  display: flex; justify-content: flex-end;
+  display: flex; justify-content: flex-end; align-items: center;
+  gap: 8px;
   flex-shrink: 0;
 }
+
+/* ── Checkbox personalizado ── */
+#sepOptions input[type=checkbox] {
+  accent-color: var(--gold);
+}
+#sepOptions label:hover { color: var(--ink); }
 
 /* ── RULES MODAL ── */
 #rulesModal {
@@ -1154,18 +1161,45 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 <div id="separateModal">
   <div class="sep-box">
     <div class="sep-header">
-      <h3>📂 Separar Fotos Originais</h3>
+      <h3>
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink:0"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+        Separar Originais para Produção
+      </h3>
       <p id="sepClientName">Selecione a pasta com os arquivos originais para copiar as fotos selecionadas.</p>
     </div>
     <div class="sep-body">
-      <div class="sep-status" id="sepStatus">Aguardando...</div>
+      <!-- Opções antes de iniciar -->
+      <div id="sepOptions" style="margin-bottom:16px;padding:14px 16px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;">
+        <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--ink3);margin-bottom:12px;">Opções de exportação</div>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;color:var(--ink2);margin-bottom:8px;">
+          <input type="checkbox" id="sepCopyJpg" style="width:15px;height:15px;accent-color:var(--gold);cursor:pointer;">
+          Copiar JPG junto (além do RAW original)
+        </label>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;color:var(--ink2);margin-bottom:8px;">
+          <input type="checkbox" id="sepSearchSubdirs" checked style="width:15px;height:15px;accent-color:var(--gold);cursor:pointer;">
+          Buscar em subpastas automaticamente (ex: /RAW/, /Originais/)
+        </label>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;color:var(--ink2);">
+          <input type="checkbox" id="sepUseFolderSelecao" style="width:15px;height:15px;accent-color:var(--gold);cursor:pointer;">
+          Usar nome de pasta <code style="background:rgba(212,168,67,0.12);padding:1px 6px;border-radius:4px;color:var(--gold2);font-size:11px;">SELECAO</code> (sem nome do cliente)
+        </label>
+      </div>
+      <!-- Status e progresso -->
+      <div class="sep-status" id="sepStatus">Aguardando seleção de pasta...</div>
       <div class="sep-bar-wrap"><div class="sep-bar-fill" id="sepFill"></div></div>
-      <div class="sep-count" id="sepCount"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div class="sep-count" id="sepCount" style="margin:0"></div>
+        <div id="sepPhase" style="font-size:10px;color:var(--ink3);letter-spacing:0.08em;text-transform:uppercase"></div>
+      </div>
       <div class="sep-log" id="sepLog"></div>
       <div class="sep-result" id="sepResult"></div>
       <div class="sep-errors" id="sepErrors"></div>
     </div>
-    <div class="sep-footer">
+    <div class="sep-footer" style="gap:8px;justify-content:space-between">
+      <button class="btn btn-outline btn-sm" id="sepRetryBtn" onclick="retrySep()" style="display:none">
+        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+        Tentar novamente
+      </button>
       <button class="btn btn-outline btn-sm" id="sepCloseBtn" onclick="closeSepModal()">Fechar</button>
     </div>
   </div>
@@ -1558,7 +1592,7 @@ function acceptRules() {
 function restoreSel(data) {
   sel = {};
   if (data.capa) sel['capa'] = [parseInt(data.capa) - 1];
-  for (let p = 1; p <= 22; p++) {
+  for (let p = 1; p <= 23; p++) {
     const v = data[`pagina${p}`];
     if (v) sel[p] = v.split(',').map(n => parseInt(n.trim()) - 1).filter(n => !isNaN(n));
   }
@@ -1611,7 +1645,7 @@ function openPgModal(idx) {
   let html = `<button class="pgbtn pgbtn-cv ${cvSel ? 'sel' : ''}" onclick="selPage('capa',this)">★ CAPA</button>`;
   html += `<div style="grid-column:span 3"></div>`;
 
-  for (let p = 1; p <= 22; p++) {
+  for (let p = 1; p <= 23; p++) {
     const cnt = countByPage[p] || 0;
     const full = cnt >= MAX_PER_PAGE;
     const s = pendingPage === p;
@@ -1693,7 +1727,7 @@ async function submitForm() {
   const payload = { status: 'Preenchido', submitted_at: new Date().toISOString() };
   // Store original photo numbers (position in gallery, 1-indexed)
   payload.capa = String(sel['capa'][0] + 1);
-  for (let p = 1; p <= 22; p++) payload[`pagina${p}`] = sel[p] && sel[p].length ? sel[p].map(i => i + 1).join(',') : null;
+  for (let p = 1; p <= 23; p++) payload[`pagina${p}`] = sel[p] && sel[p].length ? sel[p].map(i => i + 1).join(',') : null;
   const { error } = await db.from('album_forms').update(payload).eq('id', formId);
   if (error) { toast('Erro ao enviar.', 1); btn.disabled = false; btn.textContent = 'Finalizar Seleção'; return; }
   formData = { ...formData, ...payload };
@@ -1728,7 +1762,7 @@ function triggerDl(data, photos, fname) {
   if (data.aniversariante) txt += `Aniversariante: ${data.aniversariante}${data.idade ? `, ${data.idade} anos` : ''}\n`;
   txt += `Envio: ${data.submitted_at ? fmt(data.submitted_at) : 'N/A'}\n${'═'.repeat(50)}\n\n`;
   txt += `CAPA:\n  ${data.capa ? getPhotoLabel(data.capa) : '(não selecionado)'}\n\n`;
-  for (let p = 1; p <= 22; p++) {
+  for (let p = 1; p <= 23; p++) {
     const v = data[`pagina${p}`];
     if (v) {
       txt += `Página ${p}:\n`;
@@ -1741,35 +1775,70 @@ function triggerDl(data, photos, fname) {
   a.download = fname; a.click(); URL.revokeObjectURL(a.href);
 }
 
-/* ══ SEPARAR ORIGINAIS ══ */
-let _sepFormId = null;
+/* ══════════════════════════════════════════════════════════════
+   SEPARAR ORIGINAIS — v2.0
+   Funcionalidades:
+   - Busca RAW por nome-base (case-insensitive)
+   - Busca recursiva em subpastas (/RAW/, /Originais/, etc.)
+   - Opção de copiar JPG junto
+   - Pasta destino: SELECAO (opção) ou Selecionadas_[Cliente]
+   - Log detalhado por fase
+   - Botão Retry
+   - Suporte: CR2, CR3, NEF, ARW, RAF, ORF, RW2, DNG, RAW, PEF, SRW, X3F
+══════════════════════════════════════════════════════════════ */
 
-function closeSepModal() {
-  G('separateModal').classList.remove('on');
-  _sepFormId = null;
-}
+const SEP_RAW_EXTS = new Set(['.cr2','.cr3','.nef','.arw','.raf','.orf','.rw2','.dng','.raw','.pef','.srw','.x3f']);
+const SEP_JPG_EXTS = new Set(['.jpg','.jpeg','.png','.webp']);
 
+let _sepFormId   = null;
+let _sepClient   = null;
+let _sepRunning  = false;
+
+/* ── Abre modal ── */
 async function openSepModal(id, clientName) {
   if (!window.showDirectoryPicker) {
-    toast('Seu navegador não suporta acesso a pastas. Use Chrome ou Edge.', 1);
+    toast('Seu navegador não suporta acesso a pastas. Use Chrome ou Edge atualizado.', 1);
     return;
   }
-  _sepFormId = id;
+  _sepFormId  = id;
+  _sepClient  = clientName;
+  _sepRunning = false;
+  _sepResetUI(clientName);
+  G('separateModal').classList.add('on');
+  await _sepRun(id, clientName);
+}
 
-  // Reset UI
-  G('sepClientName').textContent = `Cliente: ${clientName} — Selecione a pasta com as fotos originais.`;
-  G('sepStatus').textContent = 'Aguardando seleção de pasta...';
+/* ── Retry ── */
+async function retrySep() {
+  if (!_sepFormId || _sepRunning) return;
+  _sepResetUI(_sepClient, true);
+  await _sepRun(_sepFormId, _sepClient);
+}
+
+/* ── Fecha modal ── */
+function closeSepModal() {
+  G('separateModal').classList.remove('on');
+  _sepFormId = null; _sepClient = null; _sepRunning = false;
+}
+
+/* ── Reset da UI ── */
+function _sepResetUI(clientName, isRetry = false) {
+  G('sepClientName').textContent = `Cliente: ${clientName}`;
+  G('sepStatus').textContent = isRetry ? 'Tentando novamente...' : 'Aguardando seleção de pasta...';
   G('sepFill').style.width = '0%';
   G('sepCount').textContent = '';
+  G('sepPhase').textContent = '';
   G('sepLog').innerHTML = '';
   G('sepResult').style.display = 'none';
   G('sepErrors').style.display = 'none';
-  G('sepCloseBtn').textContent = 'Fechar';
-  G('separateModal').classList.add('on');
-
-  await separateOriginalPhotos(id, clientName);
+  G('sepRetryBtn').style.display = 'none';
+  G('sepCloseBtn').textContent = 'Cancelar';
+  if (!isRetry) {
+    G('sepOptions').style.display = 'block';
+  }
 }
 
+/* ── Log colorido ── */
 function sepLog(msg, color) {
   const line = document.createElement('div');
   line.style.color = color || 'var(--ink3)';
@@ -1779,142 +1848,266 @@ function sepLog(msg, color) {
   log.scrollTop = log.scrollHeight;
 }
 
-async function separateOriginalPhotos(formId, clientName) {
-  const RAW_EXTS = new Set(['.cr2','.cr3','.nef','.arw','.raf','.orf','.rw2','.dng','.raw','.pef','.srw','.x3f']);
+function _sepSetPhase(phase) {
+  G('sepPhase').textContent = phase;
+}
 
-  // 1. Busca dados do Supabase
-  const { data: form } = await db.from('album_forms').select('*').eq('id', formId).single();
-  const { data: gal }  = await db.from('album_galleries').select('photos').eq('form_id', formId).maybeSingle();
-
-  if (!form || form.status !== 'Preenchido') {
-    G('sepStatus').textContent = 'Seleção não encontrada.';
-    sepLog('✕ O cliente ainda não finalizou a seleção.', 'var(--danger)');
-    return;
-  }
-
-  // Monta lista de nomes originais selecionados (capa + páginas)
-  const allSelected = [];
-  if (form.capa) allSelected.push(parseInt(form.capa) - 1);
-  for (let p = 1; p <= 22; p++) {
-    const v = form[`pagina${p}`];
-    if (v) v.split(',').forEach(n => { const i = parseInt(n.trim()) - 1; if (!isNaN(i) && !allSelected.includes(i)) allSelected.push(i); });
-  }
-
-  // Sem duplicatas, mantém ordem
-  const uniqueIdxs = [...new Set(allSelected)];
-
-  // Nomes originais das fotos a partir da galeria
-  const rawPhotos = (gal && gal.photos) ? gal.photos : [];
-  const parsed = rawPhotos.map(u => { try { return JSON.parse(u); } catch(e) { return { url: u, name: '' }; } });
-  const selectedNames = uniqueIdxs.map(i => parsed[i] && parsed[i].name ? parsed[i].name : `Foto_${i + 1}`);
-
-  if (!selectedNames.length) {
-    G('sepStatus').textContent = 'Nenhuma foto selecionada.';
-    sepLog('✕ Não há fotos na seleção do cliente.', 'var(--danger)');
-    return;
-  }
-
-  sepLog(`→ ${selectedNames.length} foto(s) selecionada(s) pelo cliente.`, 'var(--ink2)');
-
-  // 2. Usuário escolhe pasta de origem
-  G('sepStatus').textContent = 'Selecione a pasta com as fotos ORIGINAIS...';
-  sepLog('→ Abrindo seletor de pasta...', '#5AB4C8');
-
-  let sourceDir;
-  try {
-    sourceDir = await window.showDirectoryPicker({ mode: 'readwrite', startIn: 'pictures' });
-  } catch(e) {
-    if (e.name === 'AbortError') {
-      G('sepStatus').textContent = 'Cancelado.';
-      sepLog('✕ Seleção de pasta cancelada.', 'var(--danger)');
-      return;
-    }
-    throw e;
-  }
-
-  sepLog(`✓ Pasta selecionada: "${sourceDir.name}"`, 'var(--success)');
-
-  // 3. Cria subpasta dentro da pasta de origem
-  const safeName = clientName.replace(/[^a-zA-Z0-9À-ÿ _-]/g, '').trim();
-  const subfolderName = `Selecionadas_${safeName}`;
-  const subFolder = await sourceDir.getDirectoryHandle(subfolderName, { create: true });
-  sepLog(`✓ Subpasta criada: "${subfolderName}"`, 'var(--success)');
-
-  // 4. Indexa arquivos da pasta por nome-base (sem extensão), case-insensitive
-  G('sepStatus').textContent = 'Indexando arquivos da pasta...';
-  const byBasename = new Map();
-  let totalFiles = 0, totalRaw = 0;
-
-  for await (const [name, handle] of sourceDir.entries()) {
-    if (handle.kind !== 'file') continue;
-    const dot = name.lastIndexOf('.');
-    const ext = dot >= 0 ? name.slice(dot).toLowerCase() : '';
-    const base = (dot >= 0 ? name.slice(0, dot) : name).toLowerCase();
-    if (!byBasename.has(base)) byBasename.set(base, []);
-    byBasename.get(base).push({ name, handle, ext });
-    totalFiles++;
-    if (RAW_EXTS.has(ext)) totalRaw++;
-  }
-
-  sepLog(`→ ${totalFiles} arquivo(s) na pasta  |  ${totalRaw} RAW detectado(s)`, 'var(--ink2)');
-
-  // 5. Copia arquivos selecionados (preferência: CR2 > RAW > JPG)
-  G('sepStatus').textContent = 'Copiando arquivos originais...';
-  let copied = 0;
-  const notFound = [];
-
-  for (let i = 0; i < selectedNames.length; i++) {
-    const fname = selectedNames[i];
-    const dot = fname.lastIndexOf('.');
-    const base = (dot >= 0 ? fname.slice(0, dot) : fname).toLowerCase();
-
-    G('sepFill').style.width = Math.round(((i + 1) / selectedNames.length) * 100) + '%';
-    G('sepCount').textContent = `${i + 1} / ${selectedNames.length}`;
-
-    const variants = byBasename.get(base) || [];
-
-    if (!variants.length) {
-      notFound.push(fname);
-      sepLog(`✕ Não encontrado: ${fname}`, 'var(--danger)');
+/* ── Indexa arquivos recursivamente ── */
+async function _sepIndexDir(dirHandle, map, depth = 0) {
+  const MAX_DEPTH = 3; // segurança: máx. 3 níveis
+  for await (const [name, handle] of dirHandle.entries()) {
+    if (handle.kind === 'directory') {
+      if (depth < MAX_DEPTH) await _sepIndexDir(handle, map, depth + 1);
       continue;
     }
+    const dot = name.lastIndexOf('.');
+    const ext  = dot >= 0 ? name.slice(dot).toLowerCase() : '';
+    const base = (dot >= 0 ? name.slice(0, dot) : name).toLowerCase();
+    if (!map.has(base)) map.set(base, []);
+    map.get(base).push({ name, handle, ext });
+  }
+}
 
-    const rawFile = variants.find(v => v.ext === '.cr2')
-                 || variants.find(v => RAW_EXTS.has(v.ext))
-                 || variants[0];
+/* ── Copia um arquivo ── */
+async function _sepCopyFile(srcHandle, destDir, destName) {
+  const file   = await srcHandle.getFile();
+  const buffer = await file.arrayBuffer();
+  const dest   = await destDir.getFileHandle(destName, { create: true });
+  const w      = await dest.createWritable();
+  await w.write(buffer);
+  await w.close();
+}
 
-    try {
-      const file = await rawFile.handle.getFile();
-      const buffer = await file.arrayBuffer();
-      const destHandle = await subFolder.getFileHandle(rawFile.name, { create: true });
-      const writable = await destHandle.createWritable();
-      await writable.write(buffer);
-      await writable.close();
-      copied++;
-      const label = RAW_EXTS.has(rawFile.ext) ? `✓ [RAW] ${rawFile.name}` : `✓ ${rawFile.name}`;
-      sepLog(label, RAW_EXTS.has(rawFile.ext) ? 'var(--success)' : 'var(--ink)');
-    } catch(e) {
-      notFound.push(fname);
-      sepLog(`✕ Erro ao copiar ${rawFile.name}: ${e.message}`, 'var(--danger)');
+/* ── Lógica principal ── */
+async function _sepRun(formId, clientName) {
+  _sepRunning = true;
+
+  // Lê opções
+  const copyJpg       = G('sepCopyJpg')?.checked      ?? false;
+  const searchSubdirs = G('sepSearchSubdirs')?.checked ?? true;
+  const useSelecao    = G('sepUseFolderSelecao')?.checked ?? false;
+
+  // Oculta opções durante execução
+  G('sepOptions').style.display = 'none';
+
+  try {
+    /* ─ 1. Busca dados do Supabase ─ */
+    _sepSetPhase('Carregando seleção...');
+    G('sepStatus').textContent = 'Lendo seleção do cliente...';
+    const { data: form } = await db.from('album_forms').select('*').eq('id', formId).single();
+    const { data: gal }  = await db.from('album_galleries').select('photos').eq('form_id', formId).maybeSingle();
+
+    if (!form || form.status !== 'Preenchido') {
+      G('sepStatus').textContent = '⚠ Cliente ainda não finalizou a seleção.';
+      sepLog('✕ O cliente ainda não enviou a seleção. Status: ' + (form?.status || 'não encontrado'), 'var(--danger)');
+      G('sepRetryBtn').style.display = 'inline-flex';
+      G('sepCloseBtn').textContent = 'Fechar';
+      _sepRunning = false;
+      return;
     }
+
+    /* ─ 2. Monta lista de fotos selecionadas ─ */
+    const allSelected = [];
+    if (form.capa) allSelected.push(parseInt(form.capa) - 1);
+    for (let p = 1; p <= 23; p++) {
+      const v = form[`pagina${p}`];
+      if (v) v.split(',').forEach(n => {
+        const i = parseInt(n.trim()) - 1;
+        if (!isNaN(i) && !allSelected.includes(i)) allSelected.push(i);
+      });
+    }
+    const uniqueIdxs = [...new Set(allSelected)];
+
+    const rawPhotos = (gal && gal.photos) ? gal.photos : [];
+    const parsed    = rawPhotos.map(u => { try { return JSON.parse(u); } catch(e) { return { url: u, name: '' }; } });
+    const selectedNames = uniqueIdxs.map(i => parsed[i] && parsed[i].name ? parsed[i].name : `Foto_${i + 1}`);
+
+    if (!selectedNames.length) {
+      G('sepStatus').textContent = 'Nenhuma foto na seleção.';
+      sepLog('✕ Seleção vazia.', 'var(--danger)');
+      G('sepRetryBtn').style.display = 'inline-flex';
+      G('sepCloseBtn').textContent = 'Fechar';
+      _sepRunning = false;
+      return;
+    }
+
+    sepLog(`✓ Seleção carregada: ${selectedNames.length} foto(s) (capa + páginas)`, 'var(--success)');
+
+    /* ─ 3. Usuário escolhe a pasta de origem ─ */
+    _sepSetPhase('Aguardando pasta...');
+    G('sepStatus').textContent = 'Selecione a pasta com as fotos ORIGINAIS...';
+    sepLog('→ Abrindo seletor de pasta...', '#5AB4C8');
+
+    let sourceDir;
+    try {
+      sourceDir = await window.showDirectoryPicker({ mode: 'readwrite', startIn: 'pictures' });
+    } catch(e) {
+      if (e.name === 'AbortError') {
+        G('sepStatus').textContent = 'Seleção de pasta cancelada.';
+        sepLog('✕ Cancelado pelo usuário.', 'var(--danger)');
+        G('sepOptions').style.display = 'block';
+        G('sepCloseBtn').textContent = 'Fechar';
+        _sepRunning = false;
+        return;
+      }
+      throw e;
+    }
+
+    sepLog(`✓ Pasta selecionada: "${sourceDir.name}"`, 'var(--success)');
+
+    /* ─ 4. Cria pasta destino ─ */
+    const safeName      = clientName.replace(/[^a-zA-Z0-9À-ÿ _-]/g, '').trim();
+    const subfolderName = useSelecao ? 'SELECAO' : `Selecionadas_${safeName}`;
+    const subFolder     = await sourceDir.getDirectoryHandle(subfolderName, { create: true });
+    sepLog(`✓ Pasta destino: "${subfolderName}" ${useSelecao ? '' : '(dentro da pasta selecionada)'}`, 'var(--success)');
+
+    /* ─ 5. Indexa arquivos ─ */
+    _sepSetPhase('Indexando...');
+    G('sepStatus').textContent = searchSubdirs
+      ? 'Indexando arquivos (incluindo subpastas)...'
+      : 'Indexando arquivos da pasta raiz...';
+    sepLog(`→ Escaneando arquivos${searchSubdirs ? ' + subpastas' : ''}...`, '#5AB4C8');
+
+    const byBasename = new Map();
+    if (searchSubdirs) {
+      await _sepIndexDir(sourceDir, byBasename);
+    } else {
+      await _sepIndexDir(sourceDir, byBasename, 99); // profundidade 99 = só raiz (loop não entra em dirs)
+      // Na verdade, vamos apenas indexar nível 0
+      byBasename.clear();
+      for await (const [name, handle] of sourceDir.entries()) {
+        if (handle.kind !== 'file') continue;
+        const dot  = name.lastIndexOf('.');
+        const ext  = dot >= 0 ? name.slice(dot).toLowerCase() : '';
+        const base = (dot >= 0 ? name.slice(0, dot) : name).toLowerCase();
+        if (!byBasename.has(base)) byBasename.set(base, []);
+        byBasename.get(base).push({ name, handle, ext });
+      }
+    }
+
+    let totalFiles = 0, totalRaw = 0;
+    for (const variants of byBasename.values()) {
+      totalFiles += variants.length;
+      for (const v of variants) if (SEP_RAW_EXTS.has(v.ext)) totalRaw++;
+    }
+    sepLog(`→ ${totalFiles} arquivo(s) encontrado(s)  |  ${totalRaw} RAW detectado(s)`, 'var(--ink2)');
+
+    /* ─ 6. Copia arquivos ─ */
+    _sepSetPhase('Copiando RAW...');
+    G('sepStatus').textContent = 'Copiando arquivos RAW originais...';
+    let copied = 0, copiedJpg = 0;
+    const notFound = [], errors = [];
+
+    for (let i = 0; i < selectedNames.length; i++) {
+      const fname = selectedNames[i];
+      const dot   = fname.lastIndexOf('.');
+      const base  = (dot >= 0 ? fname.slice(0, dot) : fname).toLowerCase();
+
+      G('sepFill').style.width   = Math.round(((i + 1) / selectedNames.length) * 100) + '%';
+      G('sepCount').textContent  = `${i + 1} / ${selectedNames.length}`;
+
+      const variants = byBasename.get(base) || [];
+
+      if (!variants.length) {
+        notFound.push(fname);
+        sepLog(`✕ Não encontrado: ${fname}`, 'var(--danger)');
+        continue;
+      }
+
+      /* Prioridade: CR2 > CR3 > NEF > outros RAW > JPG (fallback) */
+      const rawFile = variants.find(v => v.ext === '.cr2')
+                   || variants.find(v => v.ext === '.cr3')
+                   || variants.find(v => v.ext === '.nef')
+                   || variants.find(v => SEP_RAW_EXTS.has(v.ext))
+                   || null;
+
+      const jpgFile = variants.find(v => SEP_JPG_EXTS.has(v.ext)) || null;
+
+      if (rawFile) {
+        /* ── Há RAW: copia o RAW ── */
+        try {
+          await _sepCopyFile(rawFile.handle, subFolder, rawFile.name);
+          copied++;
+          sepLog(`✓ [RAW] ${rawFile.name}`, 'var(--success)');
+        } catch(e) {
+          errors.push(rawFile.name);
+          sepLog(`✕ Erro ao copiar ${rawFile.name}: ${e.message}`, 'var(--danger)');
+        }
+
+        /* Opção "Copiar JPG junto": copia o JPG ALÉM do RAW */
+        if (copyJpg && jpgFile) {
+          try {
+            await _sepCopyFile(jpgFile.handle, subFolder, jpgFile.name);
+            copiedJpg++;
+            sepLog(`  + [JPG] ${jpgFile.name}`, 'var(--ink2)');
+          } catch(e) {
+            sepLog(`✕ Erro ao copiar JPG ${jpgFile.name}: ${e.message}`, 'var(--danger)');
+          }
+        }
+
+      } else if (jpgFile) {
+        /* ── Sem RAW: copia o JPG como fallback (original é o próprio JPG) ── */
+        try {
+          await _sepCopyFile(jpgFile.handle, subFolder, jpgFile.name);
+          copiedJpg++;
+          sepLog(`✓ [JPG] ${jpgFile.name}  (sem RAW — copiado como original)`, '#5AB4C8');
+        } catch(e) {
+          errors.push(jpgFile.name);
+          sepLog(`✕ Erro ao copiar JPG ${jpgFile.name}: ${e.message}`, 'var(--danger)');
+        }
+
+      } else {
+        /* ── Arquivo não encontrado na pasta ── */
+        notFound.push(fname);
+        sepLog(`✕ Não encontrado na pasta: ${fname}`, 'var(--danger)');
+      }
+    }
+
+    /* ─ 7. Resultado final ─ */
+    G('sepFill').style.width = '100%';
+    _sepSetPhase('Concluído ✓');
+    G('sepStatus').textContent = 'Processamento concluído!';
+    G('sepCloseBtn').textContent = 'Fechar';
+
+    const result = G('sepResult');
+    result.style.display = 'block';
+    const total = copied + copiedJpg;
+    let html = `✅ <strong>${total} foto(s)</strong> copiada(s) com sucesso`;
+    if (copied && copiedJpg) html += ` <span style="opacity:.7;font-size:12px">(${copied} RAW + ${copiedJpg} JPG)</span>`;
+    else if (copied)         html += ` <span style="opacity:.7;font-size:12px">(${copied} RAW)</span>`;
+    else if (copiedJpg)      html += ` <span style="opacity:.7;font-size:12px">(${copiedJpg} JPG — nenhum RAW encontrado na pasta)</span>`;
+    html += `<br>Pasta de destino: <strong>"${subfolderName}"</strong>`;
+    result.innerHTML = html;
+
+    const allNotFound = [...new Set([...notFound, ...errors])];
+    if (allNotFound.length) {
+      const errDiv = G('sepErrors');
+      errDiv.style.display = 'block';
+      errDiv.innerHTML = `⚠️ <strong>${allNotFound.length} arquivo(s) com problema</strong>:<br>
+        <span style="font-size:11px;opacity:.8;word-break:break-all">${allNotFound.join(', ')}</span><br>
+        <small style="opacity:.7">Verifique se os originais estão na pasta selecionada${searchSubdirs ? ' ou em suas subpastas' : ''}.</small>`;
+      G('sepRetryBtn').style.display = 'inline-flex';
+    }
+
+    /* Relatório no console para debug */
+    console.log('[Album Studio] Separação concluída:', {
+      cliente: clientName, pasta: subfolderName,
+      rawCopiados: copied, jpgCopiados: copiedJpg,
+      naoEncontrados: notFound, erros: errors,
+      totalSelecionados: selectedNames.length
+    });
+
+    toast(`${copied + copiedJpg} arquivo(s) copiado(s) para "${subfolderName}"!`);
+
+  } catch(e) {
+    G('sepStatus').textContent = 'Erro inesperado.';
+    sepLog(`✕ Erro: ${e.message}`, 'var(--danger)');
+    G('sepRetryBtn').style.display = 'inline-flex';
+    G('sepCloseBtn').textContent = 'Fechar';
+    console.error('[Album Studio] Erro na separação:', e);
   }
 
-  // 6. Resultado
-  G('sepFill').style.width = '100%';
-  G('sepStatus').textContent = 'Concluído!';
-  G('sepCloseBtn').textContent = 'Fechar';
-
-  const result = G('sepResult');
-  result.style.display = 'block';
-  result.innerHTML = `✅ <strong>${copied} foto(s)</strong> copiada(s) com sucesso para<br><strong>"${subfolderName}"</strong> dentro da pasta selecionada.`;
-
-  if (notFound.length) {
-    const err = G('sepErrors');
-    err.style.display = 'block';
-    err.innerHTML = `⚠️ <strong>${notFound.length} arquivo(s) não encontrado(s)</strong> na pasta:<br><span style="font-size:11px;opacity:.8">${notFound.join(', ')}</span><br><small style="opacity:.7">Certifique-se de apontar a pasta exata com os originais.</small>`;
-  }
-
-  toast(`${copied} foto(s) separada(s) com sucesso!`);
+  _sepRunning = false;
 }
 
 /* ══ DELETE ══ */
@@ -1955,6 +2148,7 @@ function toast(msg, err = 0) {
   clearTimeout(toastT); toastT = setTimeout(() => { el.className = 'toast'; }, 3400);
 }
 </script>
+
 
 </body>
 </html>

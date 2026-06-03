@@ -482,6 +482,56 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   pointer-events: none;
 }
 
+/* ── LIGHTBOX ── */
+#lightboxModal {
+  position: fixed; inset: 0; z-index: 9000;
+  background: rgba(0,0,0,0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  display: none; align-items: center; justify-content: center;
+  padding: 16px;
+}
+#lightboxModal.on { display: flex; }
+.lb-box {
+  position: relative;
+  max-width: 95vw; max-height: 95vh;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+}
+#lbImg {
+  max-width: 100%; max-height: calc(95vh - 60px);
+  object-fit: contain;
+  border-radius: 10px;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.7);
+  display: block;
+}
+.lb-close {
+  position: fixed; top: 18px; right: 20px;
+  background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.18);
+  color: var(--ink); font-size: 20px; font-weight: 300;
+  width: 40px; height: 40px; border-radius: 50%;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s; z-index: 9001; line-height: 1;
+}
+.lb-close:hover { background: rgba(255,255,255,0.2); }
+.lb-label {
+  font-size: 12px; color: rgba(255,255,255,0.5);
+  letter-spacing: 0.06em;
+}
+/* Botão ver foto no card */
+.pcard-view {
+  position: absolute; bottom: 7px; right: 7px;
+  background: rgba(0,0,0,0.62); border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.85); font-size: 10px; font-weight: 600;
+  padding: 3px 9px; border-radius: 6px; cursor: pointer;
+  letter-spacing: 0.04em; pointer-events: all;
+  transition: background 0.14s, border-color 0.14s;
+  opacity: 0;
+  transition: opacity 0.18s, background 0.14s;
+  z-index: 5;
+}
+.pcard:hover .pcard-view { opacity: 1; }
+.pcard-view:hover { background: rgba(212,168,67,0.75); border-color: var(--gold); color: #0A0A0F; }
+
 /* ── SUMMARY ── */
 .sel-summary {
   background: rgba(255,255,255,0.03);
@@ -1157,6 +1207,15 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   </div>
 </div>
 
+<!-- LIGHTBOX: VER FOTO COMPLETA -->
+<div id="lightboxModal" onclick="closeLightbox(event)">
+  <div class="lb-box" onclick="event.stopPropagation()">
+    <img id="lbImg" src="" alt="">
+    <div class="lb-label" id="lbLabel"></div>
+  </div>
+  <button class="lb-close" onclick="closeLightbox()" title="Fechar">✕</button>
+</div>
+
 <!-- MODAL: SEPARAR ORIGINAIS -->
 <div id="separateModal">
   <div class="sep-box">
@@ -1256,6 +1315,31 @@ let rtCh = null;
 let clientPhotos = [], clientPhotoNames = [], sel = {}, pendingPhoto = null, pendingPage = null;
 let rulesAccepted = false;
 let pendingClientLoad = null; // holds resolved data until rules are accepted
+
+/* ══ SELEÇÃO PERSISTENTE (localStorage) ══ */
+function selDraftKey(id) { return `albumDraft_${id}`; }
+
+function saveDraft() {
+  if (!formId) return;
+  try {
+    localStorage.setItem(selDraftKey(formId), JSON.stringify({ sel, ts: Date.now() }));
+  } catch(e) {}
+}
+
+function loadDraft(id) {
+  try {
+    const raw = localStorage.getItem(selDraftKey(id));
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    // Expira após 30 dias
+    if (Date.now() - (obj.ts || 0) > 30 * 24 * 3600 * 1000) { localStorage.removeItem(selDraftKey(id)); return null; }
+    return obj.sel || null;
+  } catch(e) { return null; }
+}
+
+function clearDraft(id) {
+  try { localStorage.removeItem(selDraftKey(id)); } catch(e) {}
+}
 
 /* ══ TABS ══ */
 function switchTab(id, btn) {
@@ -1590,6 +1674,15 @@ function acceptRules() {
 }
 
 function restoreSel(data) {
+  // Tenta restaurar rascunho local (seleções não finalizadas)
+  const draft = loadDraft(data.id || formId);
+  if (draft && Object.keys(draft).length > 0) {
+    sel = draft;
+    // Notifica o usuário que há um rascunho salvo
+    setTimeout(() => toast('✓ Seleção anterior restaurada automaticamente.'), 600);
+    return;
+  }
+  // Fallback: restaura do Supabase (seleção já finalizada ou primeira visita)
   sel = {};
   if (data.capa) sel['capa'] = [parseInt(data.capa) - 1];
   for (let p = 1; p <= 23; p++) {
@@ -1614,6 +1707,7 @@ function renderGrid() {
       <div class="pcard-n">#${i + 1}</div>
       <div class="pcard-ov"><span>${info ? (info.page === 'capa' ? '★ Capa' : `Página ${info.page}`) : 'Escolher página'}</span></div>
       ${badge}
+      <button class="pcard-view" onclick="event.stopPropagation();openLightbox(${i})" title="Ver foto inteira">👁 Ver</button>
     </div>`;
   }).join('');
 }
@@ -1676,11 +1770,11 @@ function confirmAssign() {
     if (sel[pendingPage].length < 6) sel[pendingPage].push(pendingPhoto);
     else { toast('Página cheia! Máximo 6 fotos por página.', 1); return; }
   }
-  closeModal('pgModal'); renderGrid(); renderSummary(); updatePg();
+  closeModal('pgModal'); renderGrid(); renderSummary(); updatePg(); saveDraft();
 }
 function removeAssign() {
   Object.keys(sel).forEach(pg => { sel[pg] = (sel[pg] || []).filter(i => i !== pendingPhoto); if (!sel[pg].length) delete sel[pg]; });
-  closeModal('pgModal'); renderGrid(); renderSummary(); updatePg(); toast('Foto removida.');
+  closeModal('pgModal'); renderGrid(); renderSummary(); updatePg(); saveDraft(); toast('Foto removida.');
 }
 function closePgModal() { closeModal('pgModal'); pendingPhoto = null; pendingPage = null; }
 
@@ -1703,7 +1797,7 @@ function renderSummary() {
 }
 function removeSelItem(pg, idx) {
   if (sel[pg]) { sel[pg] = sel[pg].filter(i => i !== idx); if (!sel[pg].length) delete sel[pg]; }
-  renderGrid(); renderSummary(); updatePg();
+  renderGrid(); renderSummary(); updatePg(); saveDraft();
 }
 
 /* ══ PROGRESS ══ */
@@ -1730,6 +1824,7 @@ async function submitForm() {
   for (let p = 1; p <= 23; p++) payload[`pagina${p}`] = sel[p] && sel[p].length ? sel[p].map(i => i + 1).join(',') : null;
   const { error } = await db.from('album_forms').update(payload).eq('id', formId);
   if (error) { toast('Erro ao enviar.', 1); btn.disabled = false; btn.textContent = 'Finalizar Seleção'; return; }
+  clearDraft(formId);
   formData = { ...formData, ...payload };
   G('formContent').style.display = 'none'; G('successWrap').style.display = 'block';
 }
@@ -2109,6 +2204,29 @@ async function _sepRun(formId, clientName) {
 
   _sepRunning = false;
 }
+
+/* ══ LIGHTBOX ══ */
+function openLightbox(idx) {
+  const url = clientPhotos[idx];
+  const name = clientPhotoNames[idx] || `Foto ${idx + 1}`;
+  G('lbImg').src = url;
+  G('lbLabel').textContent = `#${idx + 1}${name ? '  ·  ' + name : ''}`;
+  G('lightboxModal').classList.add('on');
+  document.body.style.overflow = 'hidden';
+}
+function closeLightbox(e) {
+  if (e && e.target !== G('lightboxModal') && !e.target.classList.contains('lb-close')) return;
+  G('lightboxModal').classList.remove('on');
+  document.body.style.overflow = '';
+  setTimeout(() => { G('lbImg').src = ''; }, 300);
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && G('lightboxModal').classList.contains('on')) {
+    G('lightboxModal').classList.remove('on');
+    document.body.style.overflow = '';
+    setTimeout(() => { G('lbImg').src = ''; }, 300);
+  }
+});
 
 /* ══ DELETE ══ */
 function openDel(id, name) { delId = id; G('delTxt').textContent = `Excluir todos os dados de "${name}"? Esta ação é permanente.`; openModal('delModal'); }

@@ -6,6 +6,7 @@
 <title>Álbum Studio</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.js"></script>
 <style>
 :root {
   --bg: #0A0A0F;
@@ -926,12 +927,193 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   text-align: center; font-size: 11px; color: var(--ink3);
   margin-top: 10px; line-height: 1.5;
 }
+/* ── ALBUM 3D FLIPBOOK ── */
+:root{
+  --pg-ratio: 1.47619; /* 31cm / 21cm */
+}
+.approval-shell{
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.appr-hdr{
+  width: 100%;
+  text-align: center;
+  padding: 28px 20px 6px;
+}
+.appr-hdr h1{
+  font-family: 'DM Serif Display', serif;
+  font-size: 26px;
+  font-weight: 400;
+  color: var(--ink);
+}
+.appr-hdr p{ font-size: 13px; color: var(--ink3); margin-top: 4px; }
+.appr-meta{
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  margin-top: 14px; font-size: 12px; color: var(--ink2);
+}
+.appr-pgtag{
+  padding: 4px 12px; border-radius: 999px; background: var(--surface);
+  border: 1px solid var(--border); letter-spacing: 0.03em;
+}
+.appr-progress-track{
+  width: 220px; height: 4px; border-radius: 4px; background: var(--surface);
+  overflow: hidden;
+}
+.appr-progress-fill{ height: 100%; background: var(--gold); transition: width .3s ease; }
+
+.book-stage{
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 12px 8px;
+  position: relative;
+}
+.book-stage::before{
+  content: '';
+  position: absolute;
+  bottom: 4%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(86%, 920px);
+  height: 60px;
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0) 72%);
+  pointer-events: none;
+}
+.book-nav-btn{
+  width: 44px; height: 44px; border-radius: 50%;
+  background: var(--glass); border: 1px solid var(--glass-bd);
+  color: var(--ink); display: flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0; transition: all .15s ease; backdrop-filter: blur(8px);
+  z-index: 5;
+}
+.book-nav-btn:hover:not(:disabled){ background: var(--surface-h); border-color: var(--gold-bd); color: var(--gold2); transform: scale(1.06); }
+.book-nav-btn:disabled{ opacity: 0.25; cursor: default; }
+.book-nav-btn svg{ width: 18px; height: 18px; }
+
+#flipbookEl{
+  filter: drop-shadow(0 24px 48px rgba(0,0,0,0.55));
+}
+.flip-page{
+  width: 100%; height: 100%;
+  background: #16161c;
+  overflow: hidden;
+  position: relative;
+}
+.flip-page img{
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+  user-select: none;
+}
+.flip-page.is-cover img, .flip-page.is-backcover img{ filter: saturate(1.03); }
+.flip-page::after{
+  content: '';
+  position: absolute; inset: 0;
+  box-shadow: inset 0 0 14px rgba(0,0,0,0.25);
+  pointer-events: none;
+}
+.flip-flag{
+  position: absolute; top: 10px; right: 10px;
+  width: 24px; height: 24px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; z-index: 4;
+  background: rgba(10,10,15,0.72); backdrop-filter: blur(4px);
+  border: 1px solid var(--glass-bd);
+}
+.flip-flag.ok{ color: var(--success); border-color: rgba(76,175,125,0.4); }
+.flip-flag.note{ color: var(--gold2); border-color: var(--gold-bd); }
+
+.appr-dock{
+  width: 100%;
+  max-width: 720px;
+  margin: 6px auto 0;
+  padding: 14px 18px 22px;
+}
+.appr-actions{ display: flex; gap: 10px; }
+.appr-btn{
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 12px 16px; border-radius: 12px; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all .15s ease; border: 1px solid var(--border);
+  background: var(--surface); color: var(--ink2);
+}
+.appr-btn svg{ width: 15px; height: 15px; }
+.appr-btn.is-approve.active{ background: rgba(76,175,125,0.14); border-color: rgba(76,175,125,0.4); color: var(--success); }
+.appr-btn.is-note.active{ background: var(--gold-dim); border-color: var(--gold-bd); color: var(--gold2); }
+.appr-btn:hover{ filter: brightness(1.15); }
+
+.appr-note-box{
+  margin-top: 10px; display: none;
+}
+.appr-note-box.on{ display: block; }
+.appr-note-box textarea{
+  width: 100%; resize: vertical; min-height: 64px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  color: var(--ink); padding: 10px 12px; font-family: inherit; font-size: 13px;
+}
+.appr-note-box textarea:focus{ outline: none; border-color: var(--gold-bd); }
+
+.appr-finish{
+  width: 100%; margin-top: 14px; padding: 13px; border-radius: 12px;
+  background: linear-gradient(135deg, var(--gold), var(--gold2)); color: #1a1408;
+  font-weight: 700; font-size: 13px; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.appr-finish:hover{ filter: brightness(1.06); }
+.appr-finish:disabled{ opacity: .4; cursor: default; }
+
+@media (max-width: 640px){
+  .book-nav-btn{ width: 36px; height: 36px; }
+  .appr-hdr h1{ font-size: 21px; }
+  .appr-actions{ flex-direction: column; }
+}
+
+/* ── UPLOAD DE PÁGINAS (admin) ── */
+.pgz-list{ display: flex; flex-direction: column; gap: 8px; margin-top: 14px; max-height: 360px; overflow-y: auto; }
+.pgz-item{
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 8px 10px;
+}
+.pgz-thumb{
+  width: 70px; height: 47px; border-radius: 6px; overflow: hidden; flex-shrink: 0;
+  background: #0c0c10;
+}
+.pgz-thumb img{ width: 100%; height: 100%; object-fit: cover; display: block; }
+.pgz-tag{
+  font-size: 10px; padding: 2px 7px; border-radius: 6px; background: var(--gold-dim);
+  color: var(--gold2); border: 1px solid var(--gold-bd); white-space: nowrap;
+}
+.pgz-name{ flex: 1; font-size: 12px; color: var(--ink2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pgz-move{ display: flex; gap: 3px; }
+.pgz-move button{
+  width: 24px; height: 24px; border-radius: 6px; background: var(--surface);
+  border: 1px solid var(--border); color: var(--ink2); cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.pgz-move button:hover:not(:disabled){ color: var(--gold); border-color: var(--gold-bd); }
+.pgz-move button:disabled{ opacity: .25; cursor: default; }
+
+/* ── FEEDBACK (admin) ── */
+.fb-item{
+  display: flex; gap: 12px; padding: 12px; border-radius: 10px;
+  background: var(--surface); border: 1px solid var(--border); margin-bottom: 8px;
+}
+.fb-thumb{ width: 84px; height: 56px; border-radius: 6px; overflow: hidden; flex-shrink: 0; }
+.fb-thumb img{ width: 100%; height: 100%; object-fit: cover; display: block; }
+.fb-status{ font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.fb-status.ok{ color: var(--success); }
+.fb-status.note{ color: var(--gold2); }
+.fb-comment{ font-size: 12.5px; color: var(--ink2); margin-top: 4px; line-height: 1.5; }
 </style>
 </head>
 <body>
 
 <!-- HEADER -->
-<div class="hdr">
+<div class="hdr" id="hdr">
   <div class="hdr-logo">
     <div class="hdr-logo-dot"></div>
     Álbum <span>Studio</span>
@@ -1188,6 +1370,105 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   </div>
 </div>
 
+<!-- ═══ APPROVAL VIEW (FLIPBOOK 3D) ═══ -->
+<div class="view" id="approvalView">
+  <div class="approval-shell" id="apprShell" style="display:none">
+    <div class="appr-hdr">
+      <h1 id="apprTitle">Seu álbum está pronto</h1>
+      <p>Folheie as páginas, aprove ou deixe um comentário onde quiser ajustar.</p>
+      <div class="appr-meta">
+        <span class="appr-pgtag" id="apprPgTag">Capa</span>
+        <div class="appr-progress-track"><div class="appr-progress-fill" id="apprProgFill" style="width:0%"></div></div>
+        <span id="apprProgTxt" style="color:var(--ink3)">0/0 aprovadas</span>
+      </div>
+    </div>
+
+    <div class="book-stage">
+      <button class="book-nav-btn" id="apprPrevBtn" onclick="apprPrev()" aria-label="Página anterior">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <div id="flipbookEl"></div>
+      <button class="book-nav-btn" id="apprNextBtn" onclick="apprNext()" aria-label="Próxima página">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+    </div>
+
+    <div class="appr-dock">
+      <div class="appr-actions">
+        <button class="appr-btn is-approve" id="apprApproveBtn" onclick="apprApprovePage()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          Aprovar esta página
+        </button>
+        <button class="appr-btn is-note" id="apprNoteBtn" onclick="apprToggleNote()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          Sugerir alteração
+        </button>
+      </div>
+      <div class="appr-note-box" id="apprNoteBox">
+        <textarea id="apprNoteText" placeholder="Descreva o que gostaria de mudar nesta página..." oninput="apprNoteInput()"></textarea>
+      </div>
+      <button class="appr-finish" id="apprFinishBtn" onclick="apprFinish()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/></svg>
+        Finalizar revisão e enviar ao estúdio
+      </button>
+    </div>
+  </div>
+
+  <div class="loading" id="apprLoading"><div class="spin"></div>Carregando álbum...</div>
+  <div class="empty" id="apprError" style="display:none">Este link de aprovação não é válido ou expirou.</div>
+
+  <div class="success-wrap" id="apprSuccessWrap" style="display:none">
+    <div class="success-icon">✓</div>
+    <h2 id="apprSuccessTitle">Revisão enviada!</h2>
+    <p id="apprSuccessTxt">O estúdio recebeu suas aprovações e comentários.<br>Em breve você receberá seu álbum finalizado. 💛</p>
+  </div>
+</div>
+
+<!-- MODAL: ENVIAR PÁGINAS DO ÁLBUM PARA APROVAÇÃO -->
+<div class="moverlay" id="pagesModal">
+  <div class="mbox" style="max-width:620px">
+    <h3 id="pgzClientName">Enviar álbum para aprovação</h3>
+    <p>Envie os prints das páginas montadas (capa, miolo e contracapa), na ordem em que aparecem no álbum. Páginas em formato paisagem, 31 × 21 cm.</p>
+    <div class="upzone" id="pgzZone" ondragover="pgzOver(event)" ondragleave="pgzLeave()" ondrop="pgzDrop(event)">
+      <input type="file" id="pgzInput" multiple accept="image/jpeg,image/png,image/webp" onchange="pgzHandleFiles(this.files)">
+      <span class="up-icon">📖</span>
+      <div class="up-title">Arraste as páginas aqui ou clique para selecionar</div>
+      <div class="up-sub">JPG · PNG · WEBP — a 1ª imagem vira a capa e a última a contracapa</div>
+    </div>
+    <div class="up-prog" id="pgzProg">
+      <div class="up-bar"><div class="up-fill" id="pgzFill" style="width:0%"></div></div>
+      <div class="up-info"><span id="pgzTxt">Preparando...</span><span id="pgzPct">0%</span></div>
+    </div>
+    <div id="pgzListWrap" style="display:none">
+      <div style="display:flex;align-items:center;gap:10px;margin:14px 0 4px">
+        <span style="font-size:13px;font-weight:600;color:var(--ink3)" id="pgzCnt">0 páginas</span>
+        <button class="btn btn-danger btn-sm" onclick="pgzClear()">Limpar</button>
+      </div>
+      <div class="pgz-list" id="pgzList"></div>
+    </div>
+    <div class="mactions">
+      <button class="btn btn-outline" onclick="closeModal('pagesModal')">Cancelar</button>
+      <button class="btn btn-gold" id="pgzGenBtn" onclick="pgzGenerateLink()" disabled>Gerar link de aprovação</button>
+    </div>
+    <div class="linkbox" id="pgzLinkBox" style="display:none;margin-top:14px">
+      <span id="pgzFinalLink">—</span>
+      <button class="btn btn-gold btn-sm" onclick="pgzCopyLink()">Copiar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: FEEDBACK DO CLIENTE -->
+<div class="moverlay" id="feedbackModal">
+  <div class="mbox" style="max-width:560px">
+    <h3 id="fbClientName">Feedback do álbum</h3>
+    <p id="fbSummary">—</p>
+    <div id="fbList" style="max-height:420px;overflow-y:auto"></div>
+    <div class="mactions">
+      <button class="btn btn-outline" onclick="closeModal('feedbackModal')">Fechar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: RULES ACCEPTANCE -->
 <div id="rulesModal" style="display:none">
   <div class="rules-box">
@@ -1351,6 +1632,16 @@ let clientPhotos = [], clientPhotoNames = [], sel = {}, pendingPhoto = null, pen
 let rulesAccepted = false;
 let pendingClientLoad = null; // holds resolved data until rules are accepted
 
+/* ══ ALBUM APPROVAL — ESTADO GLOBAL ══ */
+const PAGE_W_CM = 31, PAGE_H_CM = 21, CM_TO_PX = 20; // 31x21cm -> 620x420 (mantém proporção exata)
+const BOOK_W = PAGE_W_CM * CM_TO_PX, BOOK_H = PAGE_H_CM * CM_TO_PX;
+let pgzPages = []; // [{url, name}] no upload do admin
+let pgzFormId = null, pgzCliente = null;
+let apprData = null;       // registro album_approvals
+let apprPages = [];        // [{url, status:'pendente'|'aprovada'|'ajuste', comment:''}]
+let apprFlip = null;       // instância StPageFlip
+let apprCurrentIdx = 0;
+
 /* ══ SELEÇÃO PERSISTENTE (localStorage) ══ */
 function selDraftKey(id) { return `albumDraft_${id}`; }
 
@@ -1399,14 +1690,17 @@ async function doLogin() {
 }
 async function doLogout() {
   await db.auth.signOut();
-  view('dashView', 0); view('wizardView', 0); view('clientView', 0);
+  view('dashView', 0); view('wizardView', 0); view('clientView', 0); view('approvalView', 0);
   G('loginScreen').style.display = 'flex';
   G('logoutBtn').style.display = 'none';
 }
 
 /* ══ INIT ══ */
 window.addEventListener('DOMContentLoaded', async () => {
-  const fid = new URLSearchParams(location.search).get('form');
+  const params = new URLSearchParams(location.search);
+  const aid = params.get('album');
+  if (aid) { showApproval(aid); return; }
+  const fid = params.get('form');
   if (fid) { formId = fid; showClient(fid); return; }
   const { data: { session } } = await db.auth.getSession();
   if (session) showDash();
@@ -1415,20 +1709,25 @@ window.addEventListener('DOMContentLoaded', async () => {
 
 /* ══ VIEWS ══ */
 function showDash() {
-  view('dashView', 1); view('wizardView', 0); view('clientView', 0);
+  view('dashView', 1); view('wizardView', 0); view('clientView', 0); view('approvalView', 0);
   G('hdrbadge').textContent = 'Admin'; G('logoutBtn').style.display = '';
   loadConfigUI();
   loadForms(); subForms();
 }
 function showWizard(editId = null) {
-  view('dashView', 0); view('wizardView', 1); view('clientView', 0);
+  view('dashView', 0); view('wizardView', 1); view('clientView', 0); view('approvalView', 0);
   G('hdrbadge').textContent = editId ? 'Editar cliente' : 'Novo cliente';
   resetWizard(editId);
 }
 function showClient(id) {
-  view('dashView', 0); view('wizardView', 0); view('clientView', 1);
+  view('dashView', 0); view('wizardView', 0); view('clientView', 1); view('approvalView', 0);
   G('hdrbadge').textContent = 'Seleção de Álbum';
   loadClient(id);
+}
+function showApproval(id) {
+  view('dashView', 0); view('wizardView', 0); view('clientView', 0); view('approvalView', 1);
+  G('hdr').style.display = 'none';
+  loadApproval(id);
 }
 function view(id, on) { G(id).classList[on ? 'add' : 'remove']('on'); }
 function goBack() { resetWizard(); showDash(); }
@@ -1591,12 +1890,21 @@ async function loadForms() {
   const ids = data.map(r => r.id);
   const { data: gals } = await db.from('album_galleries').select('form_id,photos').in('form_id', ids);
   const cMap = {}; (gals || []).forEach(g => { cMap[g.form_id] = (g.photos || []).length; });
-  tb.innerHTML = data.map(r => `
+  const { data: apprs } = await db.from('album_approvals').select('id,form_id,status,pages,submitted_at').in('form_id', ids);
+  const aMap = {}; (apprs || []).forEach(a => { aMap[a.form_id] = a; });
+  tb.innerHTML = data.map(r => {
+    const appr = aMap[r.id];
+    let apprBadge = '';
+    if (appr) {
+      const cls = appr.status === 'Aprovado' ? 'bdg-done' : (appr.status === 'Revisão enviada' ? 'bdg-ready' : 'bdg-wait');
+      apprBadge = `<span class="bdg ${cls}" style="margin-left:6px">📖 ${esc(appr.status)}</span>`;
+    }
+    return `
     <tr>
       <td><strong style="color:var(--ink)">${esc(r.cliente)}</strong></td>
       <td>${r.aniversariante ? `${esc(r.aniversariante)}${r.idade ? `, ${r.idade} anos` : ''}` : '<span style="color:var(--ink3)">—</span>'}</td>
       <td>${cMap[r.id] ? `<span style="color:var(--gold);font-weight:700">${cMap[r.id]}</span>` : '<span style="color:var(--ink3)">—</span>'}</td>
-      <td><span class="${r.status === 'Preenchido' ? 'bdg bdg-done' : r.status === 'Galeria pronta' ? 'bdg bdg-ready' : 'bdg bdg-wait'}">${esc(r.status)}</span></td>
+      <td><span class="${r.status === 'Preenchido' ? 'bdg bdg-done' : r.status === 'Galeria pronta' ? 'bdg bdg-ready' : 'bdg bdg-wait'}">${esc(r.status)}</span>${apprBadge}</td>
       <td style="color:var(--ink3)">${fmt(r.created_at)}</td>
       <td style="color:var(--ink3)">${r.submitted_at ? fmt(r.submitted_at) : '<span style="color:var(--ink3)">—</span>'}</td>
       <td><div class="actions">
@@ -1606,9 +1914,13 @@ async function loadForms() {
         </button>
         ${r.status === 'Preenchido' ? `<button class="btn btn-gold btn-sm" onclick="dlAdmin('${r.id}')">Baixar</button>` : ''}
         ${r.status === 'Preenchido' ? `<button class="btn btn-outline btn-sm" onclick="openSepModal('${r.id}','${esc(r.cliente)}')" title="Separar fotos originais do PC">📂 Separar</button>` : ''}
+        ${r.status === 'Preenchido' ? `<button class="btn btn-outline btn-sm" onclick="openPagesModal('${r.id}','${esc(r.cliente)}')" title="Enviar páginas montadas para aprovação">📖 ${appr ? 'Editar álbum' : 'Enviar álbum'}</button>` : ''}
+        ${appr ? `<button class="btn btn-outline btn-sm" onclick="window.open('${location.origin}${location.pathname}?album=${appr.id}','_blank')" title="Abrir link de aprovação">🔗 Link</button>` : ''}
+        ${appr && appr.submitted_at ? `<button class="btn btn-outline btn-sm" onclick="openFeedback('${appr.id}','${esc(r.cliente)}')" title="Ver aprovações e comentários">💬 Feedback</button>` : ''}
         <button class="btn btn-danger btn-sm" onclick="openDel('${r.id}','${esc(r.cliente)}')">Excluir</button>
       </div></td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 function subForms() {
   if (rtCh) return;
@@ -1617,6 +1929,139 @@ function subForms() {
 function openNewModal() { showWizard(null); }
 function editPhotos(id) { showWizard(id); }
 function openClientLink(id) { window.open(`${location.origin}${location.pathname}?form=${id}`, '_blank'); }
+
+/* ══ ÁLBUM — UPLOAD DE PÁGINAS (ADMIN) ══ */
+async function openPagesModal(formId, cliente) {
+  pgzFormId = formId; pgzCliente = cliente; pgzPages = [];
+  G('pgzClientName').textContent = `Enviar álbum — ${cliente}`;
+  G('pgzProg').style.display = 'none';
+  G('pgzListWrap').style.display = 'none';
+  G('pgzList').innerHTML = '';
+  G('pgzGenBtn').disabled = true;
+  G('pgzLinkBox').style.display = 'none';
+  const { data } = await db.from('album_approvals').select('pages').eq('form_id', formId).maybeSingle();
+  if (data && data.pages && data.pages.length) {
+    pgzPages = data.pages.map(p => ({ url: p.url, name: p.name || '' }));
+    pgzRenderList();
+  }
+  openModal('pagesModal');
+}
+function pgzOver(e) { e.preventDefault(); G('pgzZone').classList.add('drag'); }
+function pgzLeave() { G('pgzZone').classList.remove('drag'); }
+function pgzDrop(e) {
+  e.preventDefault(); G('pgzZone').classList.remove('drag');
+  const files = [];
+  const walk = async en => {
+    if (en.isFile) return new Promise(r => en.file(f => { files.push(f); r(); }));
+    if (en.isDirectory) return new Promise(r => {
+      en.createReader().readEntries(async es => { for (const x of es) await walk(x); r(); });
+    });
+  };
+  (async () => {
+    for (const item of [...e.dataTransfer.items]) {
+      const en = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+      if (en) await walk(en); else { const f = item.getAsFile(); if (f) files.push(f); }
+    }
+    pgzHandleFiles(files);
+  })();
+}
+async function pgzHandleFiles(rawFiles) {
+  if (!pgzFormId) { toast('Erro interno: cliente não definido.', 1); return; }
+  const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+  const files = [...rawFiles].filter(f => allowed.includes(f.type)).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  if (!files.length) { toast('Nenhuma imagem válida.', 1); return; }
+  G('pgzProg').style.display = 'block';
+  const fill = G('pgzFill'), txt = G('pgzTxt'), pct = G('pgzPct');
+  fill.style.width = '0%'; txt.textContent = 'Iniciando...'; pct.textContent = '0%';
+  G('pgzGenBtn').disabled = true;
+  let done = 0, errors = 0;
+  for (const file of files) {
+    const ext = file.name.split('.').pop().toLowerCase() || 'jpg';
+    const path = `approvals/${pgzFormId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+    const { data: up, error } = await db.storage.from(BUCKET).upload(path, file, { upsert: false, contentType: file.type });
+    done++;
+    if (!error && up) {
+      const { data: pub } = db.storage.from(BUCKET).getPublicUrl(up.path);
+      pgzPages.push({ url: pub.publicUrl, name: file.name.replace(/\.[^/.]+$/, '') });
+    } else errors++;
+    const p = Math.round(done / files.length * 100);
+    fill.style.width = p + '%'; txt.textContent = `Enviando ${done} de ${files.length}...`; pct.textContent = p + '%';
+  }
+  txt.textContent = errors ? `Concluído com ${errors} erro(s).` : '✓ Upload concluído!';
+  pct.textContent = '100%';
+  pgzRenderList();
+  if (errors) toast(`${errors} arquivo(s) com erro.`, 1);
+}
+function pgzRenderList() {
+  const wrap = G('pgzListWrap'), list = G('pgzList'), cnt = G('pgzCnt');
+  if (!pgzPages.length) { wrap.style.display = 'none'; G('pgzGenBtn').disabled = true; return; }
+  wrap.style.display = 'block';
+  cnt.textContent = `${pgzPages.length} página(s)`;
+  list.innerHTML = pgzPages.map((p, i) => {
+    const tag = i === 0 ? 'Capa' : (i === pgzPages.length - 1 ? 'Contracapa' : `Página ${i}`);
+    return `
+    <div class="pgz-item">
+      <div class="pgz-thumb"><img src="${esc(p.url)}" alt=""></div>
+      <span class="pgz-tag">${tag}</span>
+      <span class="pgz-name">${esc(p.name || '')}</span>
+      <div class="pgz-move">
+        <button onclick="pgzMove(${i},-1)" ${i === 0 ? 'disabled' : ''} title="Mover para cima">↑</button>
+        <button onclick="pgzMove(${i},1)" ${i === pgzPages.length - 1 ? 'disabled' : ''} title="Mover para baixo">↓</button>
+        <button onclick="pgzRemove(${i})" title="Remover">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+  G('pgzGenBtn').disabled = pgzPages.length < 2;
+}
+function pgzMove(i, dir) {
+  const j = i + dir;
+  if (j < 0 || j >= pgzPages.length) return;
+  [pgzPages[i], pgzPages[j]] = [pgzPages[j], pgzPages[i]];
+  pgzRenderList();
+}
+function pgzRemove(i) { pgzPages.splice(i, 1); pgzRenderList(); }
+function pgzClear() { pgzPages = []; pgzRenderList(); G('pgzLinkBox').style.display = 'none'; }
+async function pgzGenerateLink() {
+  if (pgzPages.length < 2) { toast('Envie ao menos a capa e a contracapa.', 1); return; }
+  const pages = pgzPages.map(p => ({ url: p.url, name: p.name || '', status: 'pendente', comment: '' }));
+  const { data, error } = await db.from('album_approvals').upsert(
+    { form_id: pgzFormId, cliente: pgzCliente, pages, status: 'Aguardando revisão', submitted_at: null, updated_at: new Date().toISOString() },
+    { onConflict: 'form_id' }
+  ).select().single();
+  if (error) { toast('Erro ao gerar link: ' + error.message, 1); return; }
+  const url = `${location.origin}${location.pathname}?album=${data.id}`;
+  G('pgzFinalLink').textContent = url;
+  G('pgzLinkBox').style.display = 'block';
+  toast('Link de aprovação gerado!');
+  loadForms();
+}
+function pgzCopyLink() {
+  navigator.clipboard.writeText(G('pgzFinalLink').textContent).then(() => toast('Link copiado!'));
+}
+
+/* ══ ÁLBUM — FEEDBACK DO CLIENTE (ADMIN) ══ */
+async function openFeedback(approvalId, cliente) {
+  const { data, error } = await db.from('album_approvals').select('*').eq('id', approvalId).single();
+  if (error || !data) { toast('Não foi possível carregar o feedback.', 1); return; }
+  G('fbClientName').textContent = `Feedback — ${cliente}`;
+  const pages = data.pages || [];
+  const approved = pages.filter(p => p.status === 'aprovada').length;
+  const notes = pages.filter(p => p.status === 'ajuste').length;
+  G('fbSummary').textContent = `${approved} de ${pages.length} páginas aprovadas · ${notes} com pedido de alteração.`;
+  G('fbList').innerHTML = pages.map((p, i) => {
+    const tag = i === 0 ? 'Capa' : (i === pages.length - 1 ? 'Contracapa' : `Página ${i}`);
+    const ok = p.status === 'aprovada';
+    return `
+    <div class="fb-item">
+      <div class="fb-thumb"><img src="${esc(p.url)}" alt=""></div>
+      <div>
+        <div class="fb-status ${ok ? 'ok' : (p.status === 'ajuste' ? 'note' : '')}">${tag} — ${ok ? 'Aprovada' : (p.status === 'ajuste' ? 'Pedido de alteração' : 'Sem revisão')}</div>
+        ${p.comment ? `<div class="fb-comment">"${esc(p.comment)}"</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+  openModal('feedbackModal');
+}
 
 /* ══ CLIENT VIEW ══ */
 async function loadClient(id) {
@@ -2265,6 +2710,165 @@ async function _sepRun(formId, clientName, override = null) {
   }
 
   _sepRunning = false;
+}
+
+/* ══ ÁLBUM — APROVAÇÃO (CLIENTE) — FLIPBOOK 3D ══ */
+async function loadApproval(id) {
+  G('apprLoading').style.display = 'flex';
+  G('apprError').style.display = 'none';
+  G('apprShell').style.display = 'none';
+  G('apprSuccessWrap').style.display = 'none';
+  const { data, error } = await db.from('album_approvals').select('*').eq('id', id).single();
+  if (error || !data || !data.pages || !data.pages.length) {
+    G('apprLoading').style.display = 'none';
+    G('apprError').style.display = 'block';
+    return;
+  }
+  apprData = data;
+  apprPages = data.pages.map(p => ({ url: p.url, name: p.name || '', status: p.status || 'pendente', comment: p.comment || '' }));
+  apprCurrentIdx = 0;
+  document.title = `Álbum — ${data.cliente || ''}`;
+  G('apprTitle').textContent = data.cliente ? `O álbum de ${data.cliente} está pronto` : 'Seu álbum está pronto';
+  G('apprLoading').style.display = 'none';
+  apprBuildBook();
+}
+
+function apprBuildBook() {
+  G('apprShell').style.display = 'flex';
+  const el = G('flipbookEl');
+  el.innerHTML = apprPages.map((p, i) => apprPageHtml(p, i)).join('');
+
+  const aspect = BOOK_W / BOOK_H;
+  apprFlip = new St.PageFlip(el, {
+    width: BOOK_W,
+    height: BOOK_H,
+    size: 'stretch',
+    minWidth: 280,
+    maxWidth: 1040,
+    minHeight: Math.round(280 / aspect),
+    maxHeight: Math.round(1040 / aspect),
+    showCover: true,
+    drawShadow: true,
+    maxShadowOpacity: 0.55,
+    flippingTime: 700,
+    usePortrait: true,
+    mobileScrollSupport: false,
+    autoSize: true
+  });
+  apprFlip.loadFromHTML(el.querySelectorAll('.flip-page'));
+  apprFlip.on('flip', e => { apprCurrentIdx = e.data; apprSyncUI(); });
+  apprFlip.on('init', e => { apprCurrentIdx = (e.data && e.data.page) || 0; apprSyncUI(); });
+  apprSyncUI();
+
+  document.addEventListener('keydown', apprKeyNav);
+}
+function apprPageHtml(p, i) {
+  const total = apprPages.length;
+  const cls = ['flip-page'];
+  if (i === 0) cls.push('is-cover');
+  if (i === total - 1) cls.push('is-backcover');
+  const density = (i === 0 || i === total - 1) ? ' data-density="hard"' : '';
+  const flag = p.status === 'aprovada' ? '<span class="flip-flag ok">✓</span>' : (p.status === 'ajuste' ? '<span class="flip-flag note">!</span>' : '');
+  return `<div class="${cls.join(' ')}"${density}>${flag}<img src="${esc(p.url)}" alt="Página ${i + 1}" draggable="false"></div>`;
+}
+function apprKeyNav(e) {
+  if (!G('approvalView').classList.contains('on')) return;
+  if (e.key === 'ArrowLeft') apprPrev();
+  if (e.key === 'ArrowRight') apprNext();
+}
+function apprPrev() { if (apprFlip) apprFlip.flipPrev(); }
+function apprNext() { if (apprFlip) apprFlip.flipNext(); }
+
+function apprSyncUI() {
+  const total = apprPages.length, idx = apprCurrentIdx;
+  const tag = idx === 0 ? 'Capa' : (idx === total - 1 ? 'Contracapa' : `Página ${idx} de ${total - 2}`);
+  G('apprPgTag').textContent = tag;
+  G('apprPrevBtn').disabled = (idx === 0);
+  G('apprNextBtn').disabled = (idx === total - 1);
+
+  const approved = apprPages.filter(p => p.status === 'aprovada').length;
+  G('apprProgFill').style.width = Math.round(approved / total * 100) + '%';
+  G('apprProgTxt').textContent = `${approved}/${total} aprovadas`;
+
+  const cur = apprPages[idx];
+  G('apprNoteText').value = cur.comment || '';
+  G('apprNoteBox').classList.toggle('on', cur.status === 'ajuste');
+  apprSyncButtons();
+}
+function apprSyncButtons() {
+  const cur = apprPages[apprCurrentIdx];
+  G('apprApproveBtn').classList.toggle('active', cur.status === 'aprovada');
+  G('apprNoteBtn').classList.toggle('active', cur.status === 'ajuste');
+}
+function apprUpdateFlagDom(idx) {
+  const el = G('flipbookEl').querySelectorAll('.flip-page')[idx];
+  if (!el) return;
+  el.querySelector('.flip-flag')?.remove();
+  const p = apprPages[idx];
+  if (p.status === 'aprovada' || p.status === 'ajuste') {
+    const span = document.createElement('span');
+    span.className = 'flip-flag ' + (p.status === 'aprovada' ? 'ok' : 'note');
+    span.textContent = p.status === 'aprovada' ? '✓' : '!';
+    el.prepend(span);
+  }
+}
+function apprApprovePage() {
+  apprPages[apprCurrentIdx].status = 'aprovada';
+  apprPages[apprCurrentIdx].comment = '';
+  G('apprNoteBox').classList.remove('on');
+  apprUpdateFlagDom(apprCurrentIdx);
+  apprSyncUI();
+  toast('Página aprovada!');
+}
+function apprToggleNote() {
+  const box = G('apprNoteBox');
+  const opening = !box.classList.contains('on');
+  box.classList.toggle('on', opening);
+  if (opening) {
+    if (apprPages[apprCurrentIdx].status !== 'ajuste') apprPages[apprCurrentIdx].status = 'ajuste';
+    apprUpdateFlagDom(apprCurrentIdx);
+    apprSyncButtons();
+    setTimeout(() => G('apprNoteText').focus(), 50);
+  }
+}
+function apprNoteInput() {
+  const txt = G('apprNoteText').value;
+  apprPages[apprCurrentIdx].comment = txt;
+  apprPages[apprCurrentIdx].status = txt.trim() ? 'ajuste' : 'pendente';
+  apprUpdateFlagDom(apprCurrentIdx);
+  apprSyncButtons();
+  const approved = apprPages.filter(p => p.status === 'aprovada').length;
+  G('apprProgFill').style.width = Math.round(approved / apprPages.length * 100) + '%';
+  G('apprProgTxt').textContent = `${approved}/${apprPages.length} aprovadas`;
+}
+async function apprFinish() {
+  const pending = apprPages.filter(p => p.status === 'pendente').length;
+  if (pending > 0) {
+    const ok = confirm(`Ainda há ${pending} página(s) sem aprovação ou comentário. Deseja enviar mesmo assim?`);
+    if (!ok) return;
+  }
+  const btn = G('apprFinishBtn');
+  btn.disabled = true; btn.textContent = 'Enviando...';
+  const allApproved = apprPages.every(p => p.status === 'aprovada');
+  const overallStatus = allApproved ? 'Aprovado' : 'Revisão enviada';
+  const { error } = await db.from('album_approvals').update({
+    pages: apprPages, status: overallStatus, submitted_at: new Date().toISOString()
+  }).eq('id', apprData.id);
+  if (error) {
+    toast('Erro ao enviar: ' + error.message, 1);
+    btn.disabled = false;
+    btn.innerHTML = 'Finalizar revisão e enviar ao estúdio';
+    return;
+  }
+  G('apprShell').style.display = 'none';
+  if (allApproved) {
+    G('apprSuccessTitle').textContent = 'Álbum aprovado!';
+    G('apprSuccessTxt').innerHTML = 'Você aprovou todas as páginas do álbum.<br>O estúdio já foi avisado e vai seguir para a produção. 💛';
+  } else {
+    G('apprSuccessTitle').textContent = 'Revisão enviada!';
+    G('apprSuccessTxt').innerHTML = 'O estúdio recebeu suas aprovações e comentários.<br>Em breve você receberá o álbum com os ajustes. 💛';
+  }
+  G('apprSuccessWrap').style.display = 'flex';
 }
 
 /* ══ LIGHTBOX ══ */

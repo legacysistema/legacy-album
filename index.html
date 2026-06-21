@@ -963,6 +963,7 @@ tr:hover td { background: rgba(255,255,255,0.02); }
     <!-- TABS -->
     <div class="tabs">
       <button class="tab-btn on" onclick="switchTab('tabClientes',this)">Clientes</button>
+      <button class="tab-btn" onclick="switchTab('tabHistorico',this)">🕓 Histórico</button>
       <button class="tab-btn" onclick="switchTab('tabConfig',this)">⚙ Configurações</button>
     </div>
 
@@ -983,6 +984,27 @@ tr:hover td { background: rgba(255,255,255,0.02); }
               <th>Cliente</th><th>Aniversariante</th><th>Fotos</th><th>Status</th><th>Criado</th><th>Enviado</th><th>Ações</th>
             </tr></thead>
             <tbody id="fTbody"><tr><td colspan="7"><div class="loading"><div class="spin"></div>Carregando...</div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: HISTÓRICO -->
+    <div class="tab-content" id="tabHistorico">
+      <div class="card">
+        <div class="ctitle">
+          <div class="ctitle-icon">🕓</div>
+          Histórico de seleções
+        </div>
+        <p class="settings-note" style="margin-bottom:18px">
+          Quando um cliente é excluído, a seleção dele (capa, páginas e nomes das fotos) fica guardada aqui — mesmo sem o cadastro e a galeria original. Você ainda pode baixar o resumo da seleção ou separar as fotos originais a partir do histórico. Excluir um registro aqui é definitivo.
+        </p>
+        <div class="twrap">
+          <table>
+            <thead><tr>
+              <th>Cliente</th><th>Status na época</th><th>Criado</th><th>Enviado</th><th>Arquivado em</th><th>Ações</th>
+            </tr></thead>
+            <tbody id="hTbody"><tr><td colspan="6"><div class="loading"><div class="spin"></div>Carregando...</div></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -1276,6 +1298,18 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   </div>
 </div>
 
+<!-- MODAL: DELETE HISTORY -->
+<div class="moverlay" id="delHistModal">
+  <div class="mbox" style="max-width:400px">
+    <h3>Excluir histórico?</h3>
+    <p id="delHistTxt">Esta ação é permanente.</p>
+    <div class="mactions">
+      <button class="btn btn-outline" onclick="closeModal('delHistModal')">Cancelar</button>
+      <button class="btn btn-danger" id="delHistConfBtn" onclick="confirmDelHist()">Excluir</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -1311,6 +1345,7 @@ let wFormId = null;
 let uploadedPhotos = [];
 let uploadDone = false;
 let delId = null;
+let delHistId = null;
 let rtCh = null;
 let clientPhotos = [], clientPhotoNames = [], sel = {}, pendingPhoto = null, pendingPage = null;
 let rulesAccepted = false;
@@ -1347,6 +1382,7 @@ function switchTab(id, btn) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('on'));
   G(id).classList.add('on');
   btn.classList.add('on');
+  if (id === 'tabHistorico') loadHistory();
 }
 
 /* ══ AUTH ══ */
@@ -1888,6 +1924,7 @@ const SEP_JPG_EXTS = new Set(['.jpg','.jpeg','.png','.webp']);
 let _sepFormId   = null;
 let _sepClient   = null;
 let _sepRunning  = false;
+let _sepOverride = null;
 
 /* ── Abre modal ── */
 async function openSepModal(id, clientName) {
@@ -1895,25 +1932,43 @@ async function openSepModal(id, clientName) {
     toast('Seu navegador não suporta acesso a pastas. Use Chrome ou Edge atualizado.', 1);
     return;
   }
-  _sepFormId  = id;
-  _sepClient  = clientName;
-  _sepRunning = false;
+  _sepFormId   = id;
+  _sepClient   = clientName;
+  _sepRunning  = false;
+  _sepOverride = null;
   _sepResetUI(clientName);
   G('separateModal').classList.add('on');
-  await _sepRun(id, clientName);
+  await _sepRun(id, clientName, null);
+}
+
+/* ── Abre modal a partir de um item do Histórico (cliente já excluído) ── */
+async function openSepModalHist(historyId) {
+  const h = historyCache[historyId];
+  if (!h) return;
+  if (!window.showDirectoryPicker) {
+    toast('Seu navegador não suporta acesso a pastas. Use Chrome ou Edge atualizado.', 1);
+    return;
+  }
+  _sepFormId   = historyId;
+  _sepClient   = h.cliente;
+  _sepRunning  = false;
+  _sepOverride = { form: h.form_snapshot, photos: h.photos_snapshot || [] };
+  _sepResetUI(h.cliente);
+  G('separateModal').classList.add('on');
+  await _sepRun(historyId, h.cliente, _sepOverride);
 }
 
 /* ── Retry ── */
 async function retrySep() {
   if (!_sepFormId || _sepRunning) return;
   _sepResetUI(_sepClient, true);
-  await _sepRun(_sepFormId, _sepClient);
+  await _sepRun(_sepFormId, _sepClient, _sepOverride);
 }
 
 /* ── Fecha modal ── */
 function closeSepModal() {
   G('separateModal').classList.remove('on');
-  _sepFormId = null; _sepClient = null; _sepRunning = false;
+  _sepFormId = null; _sepClient = null; _sepRunning = false; _sepOverride = null;
 }
 
 /* ── Reset da UI ── */
@@ -1974,7 +2029,7 @@ async function _sepCopyFile(srcHandle, destDir, destName) {
 }
 
 /* ── Lógica principal ── */
-async function _sepRun(formId, clientName) {
+async function _sepRun(formId, clientName, override = null) {
   _sepRunning = true;
 
   // Lê opções
@@ -1986,11 +2041,19 @@ async function _sepRun(formId, clientName) {
   G('sepOptions').style.display = 'none';
 
   try {
-    /* ─ 1. Busca dados do Supabase ─ */
+    /* ─ 1. Busca dados do Supabase (ou usa o snapshot do Histórico, se vier de um cliente já excluído) ─ */
     _sepSetPhase('Carregando seleção...');
     G('sepStatus').textContent = 'Lendo seleção do cliente...';
-    const { data: form } = await db.from('album_forms').select('*').eq('id', formId).single();
-    const { data: gal }  = await db.from('album_galleries').select('photos').eq('form_id', formId).maybeSingle();
+    let form, rawPhotos;
+    if (override) {
+      form      = override.form || null;
+      rawPhotos = override.photos || [];
+    } else {
+      const { data: f } = await db.from('album_forms').select('*').eq('id', formId).single();
+      const { data: g }  = await db.from('album_galleries').select('photos').eq('form_id', formId).maybeSingle();
+      form      = f;
+      rawPhotos = (g && g.photos) ? g.photos : [];
+    }
 
     if (!form || form.status !== 'Preenchido') {
       G('sepStatus').textContent = '⚠ Cliente ainda não finalizou a seleção.';
@@ -2013,7 +2076,6 @@ async function _sepRun(formId, clientName) {
     }
     const uniqueIdxs = [...new Set(allSelected)];
 
-    const rawPhotos = (gal && gal.photos) ? gal.photos : [];
     const parsed    = rawPhotos.map(u => { try { return JSON.parse(u); } catch(e) { return { url: u, name: '' }; } });
     const selectedNames = uniqueIdxs.map(i => parsed[i] && parsed[i].name ? parsed[i].name : `Foto_${i + 1}`);
 
@@ -2233,7 +2295,30 @@ function openDel(id, name) { delId = id; G('delTxt').textContent = `Excluir todo
 async function confirmDel() {
   if (!delId) return;
   const btn = G('delConfBtn'); btn.disabled = true; btn.textContent = 'Excluindo...';
-  const { data: gal } = await db.from('album_galleries').select('photos').eq('form_id', delId).maybeSingle();
+
+  // Arquiva a seleção no Histórico ANTES de excluir tudo, para que o resumo e a
+  // lista de fotos selecionadas continuem disponíveis mesmo após a exclusão.
+  const { data: form } = await db.from('album_forms').select('*').eq('id', delId).single();
+  const { data: gal }  = await db.from('album_galleries').select('photos').eq('form_id', delId).maybeSingle();
+
+  if (form) {
+    const { error: histErr } = await db.from('album_history').insert({
+      form_id:        form.id,
+      cliente:        form.cliente,
+      status:         form.status,
+      created_at:     form.created_at,
+      submitted_at:   form.submitted_at,
+      form_snapshot:  form,
+      photos_snapshot: (gal && gal.photos) ? gal.photos : []
+    });
+    if (histErr) {
+      toast('Não foi possível salvar o histórico (verifique se a tabela album_history existe). Exclusão cancelada.', 1);
+      btn.disabled = false; btn.textContent = 'Excluir';
+      console.error('[Album Studio] Erro ao arquivar histórico:', histErr);
+      return;
+    }
+  }
+
   if (gal && gal.photos && gal.photos.length) {
     const paths = gal.photos.map(u => { const p = u.split('/object/public/' + BUCKET + '/'); return p[1] || null; }).filter(Boolean);
     if (paths.length) await db.storage.from(BUCKET).remove(paths);
@@ -2241,7 +2326,56 @@ async function confirmDel() {
   await db.from('album_galleries').delete().eq('form_id', delId);
   await db.from('album_forms').delete().eq('id', delId);
   btn.disabled = false; btn.textContent = 'Excluir'; closeModal('delModal');
-  toast('Excluído.'); loadForms(); delId = null;
+  toast('Excluído. A seleção foi salva no Histórico.'); loadForms(); delId = null;
+}
+
+/* ══ HISTÓRICO DE SELEÇÕES ══ */
+let historyCache = {};
+async function loadHistory() {
+  const tb = G('hTbody');
+  tb.innerHTML = '<tr><td colspan="6"><div class="loading"><div class="spin"></div>Carregando...</div></td></tr>';
+  const { data, error } = await db.from('album_history').select('*').order('archived_at', { ascending: false });
+  if (error || !data || !data.length) {
+    tb.innerHTML = `<tr><td colspan="6"><div class="empty">${error ? 'Erro ao carregar histórico. Verifique se a tabela album_history foi criada.' : 'Nenhum histórico ainda.'}</div></td></tr>`;
+    return;
+  }
+  historyCache = {};
+  data.forEach(h => { historyCache[h.id] = h; });
+  tb.innerHTML = data.map(h => {
+    const hadSelection = !!(h.form_snapshot && h.form_snapshot.capa);
+    return `
+    <tr>
+      <td><strong style="color:var(--ink)">${esc(h.cliente)}</strong></td>
+      <td><span class="${h.status === 'Preenchido' ? 'bdg bdg-done' : h.status === 'Galeria pronta' ? 'bdg bdg-ready' : 'bdg bdg-wait'}">${esc(h.status || '—')}</span></td>
+      <td style="color:var(--ink3)">${fmt(h.created_at)}</td>
+      <td style="color:var(--ink3)">${h.submitted_at ? fmt(h.submitted_at) : '<span style="color:var(--ink3)">—</span>'}</td>
+      <td style="color:var(--ink3)">${fmt(h.archived_at)}</td>
+      <td><div class="actions">
+        ${hadSelection ? `<button class="btn btn-gold btn-sm" onclick="dlHistory('${h.id}')">Baixar</button>` : ''}
+        ${hadSelection ? `<button class="btn btn-outline btn-sm" onclick="openSepModalHist('${h.id}')" title="Separar fotos originais do PC">📂 Separar</button>` : ''}
+        <button class="btn btn-danger btn-sm" onclick="openDelHist('${h.id}','${esc(h.cliente)}')">Excluir</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+function dlHistory(id) {
+  const h = historyCache[id];
+  if (!h) return;
+  triggerDl(h.form_snapshot, h.photos_snapshot || [], `album_${(h.cliente || 'cliente').replace(/\s+/g, '_')}_historico.txt`);
+}
+
+function openDelHist(id, name) {
+  delHistId = id;
+  G('delHistTxt').textContent = `Excluir o histórico de "${name}"? Esta ação é permanente e não pode ser desfeita.`;
+  openModal('delHistModal');
+}
+async function confirmDelHist() {
+  if (!delHistId) return;
+  const btn = G('delHistConfBtn'); btn.disabled = true; btn.textContent = 'Excluindo...';
+  await db.from('album_history').delete().eq('id', delHistId);
+  btn.disabled = false; btn.textContent = 'Excluir'; closeModal('delHistModal');
+  toast('Histórico excluído.'); loadHistory(); delHistId = null;
 }
 
 /* ══ MODAL ══ */

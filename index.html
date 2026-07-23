@@ -555,9 +555,11 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 }
 .sel-item:hover { border-color: var(--border-h); }
 .sel-item.cv { border-color: rgba(200,132,90,0.3); background: rgba(200,132,90,0.05); }
+.sel-item.inv { border-color: rgba(224,82,82,0.35); background: rgba(224,82,82,0.06); }
 .sel-thumb { width: 42px; height: 30px; object-fit: cover; border-radius: 5px; flex-shrink: 0; background: var(--surface); }
 .sel-lbl { font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink3); }
 .sel-lbl.cv { color: var(--accent); }
+.sel-lbl.inv { color: var(--danger); }
 .sel-num { font-size: 13px; font-weight: 600; color: var(--ink); }
 .sel-del { margin-left: auto; background: none; border: none; color: var(--ink3); cursor: pointer; font-size: 14px; padding: 2px; flex-shrink: 0; }
 .sel-del:hover { color: var(--danger); }
@@ -570,6 +572,7 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   border-radius: 10px; padding: 12px 20px; font-size: 13px; color: var(--gold2);
   margin-bottom: 20px; max-width: 520px; line-height: 1.5;
 }
+.fin-note.warn { background: rgba(224,82,82,0.08); border-color: rgba(224,82,82,0.3); color: #F0A0A0; }
 
 /* ── SUCCESS CLIENT ── */
 .success-wrap {
@@ -631,6 +634,7 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 .pgbtn:hover:not(.occ):not(.sel) { border-color: var(--gold-bd); color: var(--gold); background: var(--gold-dim); }
 .pgbtn.sel { background: var(--gold-dim); color: var(--gold2); border-color: var(--gold); font-weight: 700; }
 .pgbtn.occ { background: rgba(224,82,82,0.04); border-color: rgba(224,82,82,0.15); color: rgba(224,82,82,0.35); cursor: not-allowed; }
+.pgbtn.warnpg { border-color: rgba(224,82,82,0.45); box-shadow: inset 0 0 0 1px rgba(224,82,82,0.18); }
 .pgbtn .pn { font-size: 12px; font-weight: 700; }
 .pgbtn .pl { font-size: 8px; letter-spacing: 0.05em; text-transform: uppercase; }
 .pgbtn-cv {
@@ -650,6 +654,12 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   letter-spacing: 0;
   font-weight: 600;
   line-height: 1;
+}
+.pgbtn-warn {
+  font-size: 9px;
+  color: var(--danger);
+  line-height: 1;
+  margin-top: 1px;
 }
 
 /* ── LOGIN ── */
@@ -2198,6 +2208,15 @@ function buildRevMap() {
   return m;
 }
 
+// Regra do álbum: cada página só pode ter 1, 2, 4 ou 6 fotos — nunca 3 ou 5.
+const INVALID_PAGE_COUNTS = [3, 5];
+function getInvalidPages() {
+  return Object.keys(sel)
+    .filter(k => k !== 'capa' && sel[k] && INVALID_PAGE_COUNTS.includes(sel[k].length))
+    .map(k => parseInt(k))
+    .sort((a, b) => a - b);
+}
+
 /* ══ PAGE MODAL ══ */
 function openPgModal(idx) {
   pendingPhoto = idx; pendingPage = null;
@@ -2223,10 +2242,13 @@ function openPgModal(idx) {
   for (let p = 1; p <= 23; p++) {
     const cnt = countByPage[p] || 0;
     const full = cnt >= MAX_PER_PAGE;
+    const wouldBe = cnt + 1;
+    const willBeInvalid = !full && INVALID_PAGE_COUNTS.includes(wouldBe);
     const s = pendingPage === p;
     const countLabel = cnt > 0 ? `<span class="pgbtn-count">${cnt}/${MAX_PER_PAGE}</span>` : '';
-    html += `<button class="pgbtn ${s ? 'sel' : ''} ${full ? 'occ' : ''}" onclick="${full ? '' : 'selPage(' + p + ',this)'}">
-      <span class="pn">${p}</span><span class="pl">pág</span>${countLabel}
+    const warnMark = willBeInvalid ? `<span class="pgbtn-warn" title="Essa página ficaria com ${wouldBe} fotos — não permitido. Use 1, 2, 4 ou 6.">⚠</span>` : '';
+    html += `<button class="pgbtn ${s ? 'sel' : ''} ${full ? 'occ' : ''} ${willBeInvalid ? 'warnpg' : ''}" onclick="${full ? '' : 'selPage(' + p + ',this)'}">
+      <span class="pn">${p}</span><span class="pl">pág</span>${countLabel}${warnMark}
     </button>`;
   }
   g.innerHTML = html;
@@ -2251,11 +2273,22 @@ function confirmAssign() {
     if (sel[pendingPage].length < 6) sel[pendingPage].push(pendingPhoto);
     else { toast('Página cheia! Máximo 6 fotos por página.', 1); return; }
   }
+  const assignedPage = pendingPage;
   closeModal('pgModal'); renderGrid(); renderSummary(); updatePg(); saveDraft();
+  if (assignedPage !== 'capa' && sel[assignedPage] && INVALID_PAGE_COUNTS.includes(sel[assignedPage].length)) {
+    toast(`⚠ Página ${assignedPage} ficou com ${sel[assignedPage].length} foto(s). Cada página só pode ter 1, 2, 4 ou 6 — ajuste antes de finalizar.`, 1);
+  }
 }
 function removeAssign() {
+  const wasOn = buildRevMap()[pendingPhoto];
+  const formerPage = (wasOn && typeof wasOn.page === 'number') ? wasOn.page : null;
   Object.keys(sel).forEach(pg => { sel[pg] = (sel[pg] || []).filter(i => i !== pendingPhoto); if (!sel[pg].length) delete sel[pg]; });
-  closeModal('pgModal'); renderGrid(); renderSummary(); updatePg(); saveDraft(); toast('Foto removida.');
+  closeModal('pgModal'); renderGrid(); renderSummary(); updatePg(); saveDraft();
+  if (formerPage !== null && sel[formerPage] && INVALID_PAGE_COUNTS.includes(sel[formerPage].length)) {
+    toast(`Foto removida. ⚠ Página ${formerPage} ficou com ${sel[formerPage].length} foto(s) — ajuste antes de finalizar.`, 1);
+  } else {
+    toast('Foto removida.');
+  }
 }
 function closePgModal() { closeModal('pgModal'); pendingPhoto = null; pendingPage = null; }
 
@@ -2266,19 +2299,25 @@ function renderSummary() {
   if (!keys.length) { el.style.display = 'none'; return; }
   el.style.display = 'block';
   keys.sort((a, b) => a === 'capa' ? -1 : b === 'capa' ? 1 : parseInt(a) - parseInt(b));
-  grid.innerHTML = keys.flatMap(pg => (sel[pg] || []).map((idx, slot) => `
-    <div class="sel-item ${pg === 'capa' ? 'cv' : ''}">
+  grid.innerHTML = keys.flatMap(pg => {
+    const inv = pg !== 'capa' && INVALID_PAGE_COUNTS.includes(sel[pg].length);
+    return (sel[pg] || []).map((idx, slot) => `
+    <div class="sel-item ${pg === 'capa' ? 'cv' : ''} ${inv ? 'inv' : ''}">
       <img class="sel-thumb" src="${esc(clientPhotos[idx])}" alt="">
       <div>
-        <div class="sel-lbl ${pg === 'capa' ? 'cv' : ''}">${pg === 'capa' ? '★ Capa' : `Pág. ${pg}${sel[pg].length > 1 ? ' · ' + (slot + 1) + 'ª' : ''}`}</div>
+        <div class="sel-lbl ${pg === 'capa' ? 'cv' : ''} ${inv ? 'inv' : ''}">${pg === 'capa' ? '★ Capa' : `Pág. ${pg}${sel[pg].length > 1 ? ' · ' + (slot + 1) + 'ª' : ''}`}${inv ? ' ⚠' : ''}</div>
         <div class="sel-num">Foto #${idx + 1}</div>
       </div>
       <button class="sel-del" onclick="removeSelItem('${pg}',${idx})">✕</button>
-    </div>`)).join('');
+    </div>`);
+  }).join('');
 }
 function removeSelItem(pg, idx) {
   if (sel[pg]) { sel[pg] = sel[pg].filter(i => i !== idx); if (!sel[pg].length) delete sel[pg]; }
   renderGrid(); renderSummary(); updatePg(); saveDraft();
+  if (pg !== 'capa' && sel[pg] && INVALID_PAGE_COUNTS.includes(sel[pg].length)) {
+    toast(`⚠ Página ${pg} ficou com ${sel[pg].length} foto(s). Ajuste para 1, 2, 4 ou 6 antes de finalizar.`, 1);
+  }
 }
 
 /* ══ PROGRESS ══ */
@@ -2288,8 +2327,16 @@ function updatePg() {
   G('pgFill').style.width = Math.min(100, Math.round(done / 24 * 100)) + '%';
   const hasCv = sel['capa'] && sel['capa'].length;
   const pgCnt = Object.keys(sel).filter(k => k !== 'capa' && sel[k] && sel[k].length).length;
+  const invalid = getInvalidPages();
   const btn = G('subBtn'), note = G('finNote');
+  note.classList.remove('warn');
   if (!hasCv) { note.textContent = '📌 Selecione a foto da capa e as páginas do álbum.'; btn.disabled = true; }
+  else if (invalid.length) {
+    const detail = invalid.map(p => `pág. ${p} (${sel[p].length})`).join(', ');
+    note.innerHTML = `⚠️ Ajuste necessário — ${invalid.length > 1 ? 'páginas' : 'página'} ${detail}: cada página deve ter <strong>1, 2, 4 ou 6</strong> fotos (nunca 3 ou 5).`;
+    note.classList.add('warn');
+    btn.disabled = true;
+  }
   else if (!pgCnt) { note.textContent = '✅ Capa selecionada! Agora escolha as fotos das páginas.'; btn.disabled = false; }
   else { note.textContent = `✅ Capa + ${pgCnt} página(s). Pronto para finalizar!`; btn.disabled = false; }
 }
@@ -2298,6 +2345,13 @@ function updatePg() {
 async function submitForm() {
   if (!formId) return;
   if (!sel['capa'] || !sel['capa'].length) { toast('Selecione a foto da capa.', 1); return; }
+  const invalid = getInvalidPages();
+  if (invalid.length) {
+    const detail = invalid.map(p => `pág. ${p} (${sel[p].length} fotos)`).join(', ');
+    toast(`Ajuste necessário: ${detail}. Cada página deve ter 1, 2, 4 ou 6 fotos.`, 1);
+    updatePg();
+    return;
+  }
   const btn = G('subBtn'); btn.disabled = true; btn.textContent = 'Enviando...';
   const payload = { status: 'Preenchido', submitted_at: new Date().toISOString() };
   // Store original photo numbers (position in gallery, 1-indexed)

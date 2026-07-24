@@ -2365,22 +2365,11 @@ async function submitForm() {
 }
 
 /* ══ DOWNLOAD ══ */
-async function dlAdmin(id) {
-  const { data } = await db.from('album_forms').select('*').eq('id', id).single();
-  if (!data) return;
-  const { data: gal } = await db.from('album_galleries').select('photos').eq('form_id', id).maybeSingle();
-  triggerDl(data, gal && gal.photos ? gal.photos : [], `album_${data.cliente.replace(/\s+/g, '_')}.txt`);
-}
-function dlClient() {
-  if (!formData) return;
-  // Rebuild raw entries from clientPhotos URLs + clientPhotoNames for triggerDl to parse
-  const raw = clientPhotos.map((url, i) => JSON.stringify({ url, name: clientPhotoNames[i] || '' }));
-  triggerDl(formData, raw, 'minha_selecao.txt');
-}
-
-function triggerDl(data, photos, fname) {
-  // Parse photo entries: may be JSON {url,name} or plain URL strings (legacy)
-  const parsedPhotos = photos.map(u => { try { return JSON.parse(u); } catch(e) { return { url: u, name: '' }; } });
+function buildSelecaoTxt(data, photos) {
+  // Parse das fotos (pode ser JSON {url,name} ou string URL)
+  const parsedPhotos = photos.map(u => {
+    try { return JSON.parse(u); } catch(e) { return { url: u, name: '' }; }
+  });
   const getPhotoLabel = n => {
     const i = parseInt(n) - 1;
     const p = parsedPhotos[i];
@@ -2400,9 +2389,27 @@ function triggerDl(data, photos, fname) {
       txt += '\n';
     }
   }
+  return txt;
+}
+
+function triggerDl(data, photos, fname) {
+  const txt = buildSelecaoTxt(data, photos);
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([txt], { type: 'text/plain;charset=utf-8' }));
   a.download = fname; a.click(); URL.revokeObjectURL(a.href);
+}
+
+async function dlAdmin(id) {
+  const { data } = await db.from('album_forms').select('*').eq('id', id).single();
+  if (!data) return;
+  const { data: gal } = await db.from('album_galleries').select('photos').eq('form_id', id).maybeSingle();
+  triggerDl(data, gal && gal.photos ? gal.photos : [], `album_${data.cliente.replace(/\s+/g, '_')}.txt`);
+}
+function dlClient() {
+  if (!formData) return;
+  // Rebuild raw entries from clientPhotos URLs + clientPhotoNames for triggerDl to parse
+  const raw = clientPhotos.map((url, i) => JSON.stringify({ url, name: clientPhotoNames[i] || '' }));
+  triggerDl(formData, raw, 'minha_selecao.txt');
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -2719,7 +2726,20 @@ async function _sepRun(formId, clientName, override = null) {
       }
     }
 
-    /* ─ 7. Resultado final ─ */
+    /* ─ 7. Grava arquivo .txt de seleção na pasta destino ─ */
+    try {
+      const txtContent = buildSelecaoTxt(form, rawPhotos);
+      const txtFileName = `_SELECAO_${safeName}.txt`;
+      const txtHandle = await subFolder.getFileHandle(txtFileName, { create: true });
+      const writer = await txtHandle.createWritable();
+      await writer.write(txtContent);
+      await writer.close();
+      sepLog(`✓ Arquivo de seleção salvo: ${txtFileName}`, 'var(--success)');
+    } catch(e) {
+      sepLog(`✕ Erro ao salvar arquivo de seleção: ${e.message}`, 'var(--danger)');
+    }
+
+    /* ─ 8. Resultado final ─ */
     G('sepFill').style.width = '100%';
     _sepSetPhase('Concluído ✓');
     G('sepStatus').textContent = 'Processamento concluído!';
@@ -3058,7 +3078,6 @@ function toast(msg, err = 0) {
   clearTimeout(toastT); toastT = setTimeout(() => { el.className = 'toast'; }, 3400);
 }
 </script>
-
 
 </body>
 </html>
